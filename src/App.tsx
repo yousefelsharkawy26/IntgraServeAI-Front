@@ -1,10 +1,10 @@
+import useConsoleLogProduction from './hooks/useConsoleLogProduction';
+import AppRoutes from './routes/AppRoutes';
+
 function App() {
-  return (
-    <div>
-      <h1>hello</h1>
-      <a href="#">link</a>
-    </div>
-  );
+  useConsoleLogProduction();
+  console.log('App component');
+  return <AppRoutes />;
 }
 
 export default App;
