@@ -1,5 +1,5 @@
 import { RefObject, useEffect, useRef, useState } from 'react';
-import { calculateWidthInUnitCH } from '../utils/helper';
+import { calculateWidthInUnitCH } from '@/utils/helpers';
 
 interface IReturn {
   widthInUnitCH: number;
@@ -43,7 +43,11 @@ const useWidthInUnitCH = (): IReturn => {
     };
   }, [mounted]);
 
-  return { widthInUnitCH, elementRef, setMounted };
+  return {
+    widthInUnitCH,
+    elementRef: elementRef as RefObject<HTMLDivElement>,
+    setMounted,
+  };
 };
 
 export default useWidthInUnitCH;
