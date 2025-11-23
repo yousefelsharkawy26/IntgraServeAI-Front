@@ -11,7 +11,7 @@ const UnderDevelopmentPage = () => {
       />
       <meta name="keywords" content={metaTage.UnderDevelopmentPage.keywords} />
       <ButtonMoveBack />
-      <h1>مازالت تحت التطوير</h1>
+      <h1>Still under development</h1>
     </div>
   );
 };
