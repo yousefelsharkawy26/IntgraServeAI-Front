@@ -1,7 +1,17 @@
-import React from 'react';
-import { NavigatorWithNetworkInfo, NetworkInformation, NetworkStateT } from '../types';
+import React, { useEffect, useState } from 'react';
+import {
+  NavigatorWithNetworkInfo,
+  NetworkInformation,
+  NetworkServerErrorStateT,
+  NetworkStateT,
+} from '../types';
+import axiosInstance from '@/services/axiosInstance';
+import axios from 'axios';
 
-function isShallowEqual(object1: Partial<NetworkStateT>, object2: Partial<NetworkStateT>): boolean {
+function isShallowEqual(
+  object1: Partial<NetworkStateT>,
+  object2: Partial<NetworkStateT>,
+): boolean {
   const keys1 = Object.keys(object1) as (keyof NetworkStateT)[];
   const keys2 = Object.keys(object2) as (keyof NetworkStateT)[];
 
@@ -22,7 +32,6 @@ const getConnection = (): NetworkInformation | undefined => {
   const nav = navigator as NavigatorWithNetworkInfo;
   return nav.connection || nav.mozConnection || nav.webkitConnection;
 };
-
 
 const useNetworkStateSubscribe = (callback: EventListener): (() => void) => {
   window.addEventListener('online', callback, { passive: true });
@@ -46,6 +55,47 @@ const useNetworkStateSubscribe = (callback: EventListener): (() => void) => {
 
 const getNetworkStateServerSnapshot = (): never => {
   throw Error('useNetworkState is a client-only hook');
+};
+
+export const useServerConnection = () => {
+  const [serverError, setServerError] = useState<NetworkServerErrorStateT>({
+    error: null,
+  });
+
+  const checkServerConnection = async () => {
+    try {
+      await axiosInstance.get('/health');
+      setServerError({ error: null });
+      console.log('not server error');
+    } catch (error) {
+      console.error('server connection error', error);
+      if (axios.isAxiosError(error)) {
+        setServerError({ error: 'server not connected' });
+        console.error('axios server connection error', error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (navigator.onLine) {
+      setTimeout(() => checkServerConnection, 0);
+    }
+
+    const interval = setInterval(
+      () => {
+        if (navigator.onLine) {
+          checkServerConnection();
+        }
+      },
+      0.5 * 1000 * 60,
+    );
+
+    return () => clearInterval(interval);
+  }, []);
+
+  console.log('serverError', serverError);
+
+  return { serverError };
 };
 
 // ⭐⭐⭐⭐
