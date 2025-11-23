@@ -1,0 +1,17 @@
+{
+  "ErrorPage": {
+    "title": "Oops! Something went wrong",
+    "description": "go back, its issue",
+    "keywords": ""
+  },
+  "PageNotFound": {
+    "title": "Page not found",
+    "description": "Page not found",
+    "keywords": ""
+  },
+  "UnderDevelopmentPage": {
+    "title": "Under Development",
+    "description": "The page still under development",
+    "keywords": ""
+  }
+}
