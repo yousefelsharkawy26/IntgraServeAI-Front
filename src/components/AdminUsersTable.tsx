@@ -32,6 +32,7 @@ import ModalUpdateUserRoles from '@/features/admin/ModalUpdateUserRoles';
 import { useActivateAndDeactivate } from '@/features/admin/useActivateAndDeactivate';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import ModalUserLogs from '@/features/admin/ModalUserLogsById';
 
 const AdminUsersTable = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -201,6 +202,13 @@ const AdminUsersTable = () => {
                           >
                             Update Roles
                           </SelectItem>
+                          <SelectItem
+                            className="cursor-pointer !py-0.5"
+                            value="viewLogs"
+                          >
+                            View Logs
+                          </SelectItem>
+
                         </SelectContent>
                       </Select>
                     </div>
@@ -276,6 +284,7 @@ const AdminUsersTable = () => {
           </div>
         </div>
       </CardContent>
+
       <ModalUserById
         userId={selectedUserId}
         open={isModalOpen}
@@ -305,6 +314,17 @@ const AdminUsersTable = () => {
 
       <ModalUpdateUserRoles
         open={modalActions[selectedUserId as string] === 'updateRoles'}
+        onClose={() =>
+          setModalActions((prev) => ({
+            ...prev,
+            [selectedUserId as string]: null,
+          }))
+        }
+        userId={selectedUserId}
+      />
+
+      <ModalUserLogs 
+        open={modalActions[selectedUserId as string] === 'viewLogs'}
         onClose={() =>
           setModalActions((prev) => ({
             ...prev,
