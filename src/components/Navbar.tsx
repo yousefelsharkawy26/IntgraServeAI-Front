@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 import HamburgerIconSVG from './svg/HamburgerIconSVG';
 import ThemeToggle from './ThemeToggle';
+import ProfileMenu from './ProfileMenu';
 
 export interface NavbarNavLink {
   href: string;
@@ -83,7 +84,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
       <header
         ref={combinedRef}
         className={cn(
-          'bg-background/95 supports-[backdrop-filter]:bg-background/60 !md:px-6 fixed top-0 z-50 w-full border-b !px-4 backdrop-blur [&_*]:no-underline',
+          'bg-background/95 supports-backdrop-filter:bg-background/60 !md:px-6 fixed top-0 z-50 w-full border-b px-4! backdrop-blur **:no-underline',
           className,
         )}
         {...props}
@@ -157,6 +158,9 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Profile Menu */}
+
+            <ProfileMenu />
             <ThemeToggle />
           </div>
         </div>
