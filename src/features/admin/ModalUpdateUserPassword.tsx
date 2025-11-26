@@ -48,12 +48,12 @@ const ModalUpdateUserPassword = ({ onClose, open, userId }: IProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="!p-5 sm:max-w-[400px]">
+      <DialogContent className="p-5! sm:max-w-[400px]">
         <AlertDialogHeader>
           <DialogTitle>Update User password</DialogTitle>
         </AlertDialogHeader>
         <div className="py-4">
-          <p className="!mb-4">name: {dataUserById?.full_name}</p>
+          <p className="mb-4!">name: {dataUserById?.full_name}</p>
           <FormUpdateUserPassword
             classNames={{ inputClassName: '!px-3' }}
             onSubmit={handleSubmit}
@@ -72,7 +72,7 @@ const ModalUpdateUserPassword = ({ onClose, open, userId }: IProps) => {
             <Button
               variant="outline"
               id="close-update-user-password"
-              className="!px-3"
+              className="px-3!"
             >
               Cancel
             </Button>
@@ -80,7 +80,7 @@ const ModalUpdateUserPassword = ({ onClose, open, userId }: IProps) => {
           <Button
             form="update-user-password-form"
             type="submit"
-            className="!px-3"
+            className="px-3!"
             disabled={isLoadingUpdateUserPassword}
           >
             {isLoadingUpdateUserPassword ? (

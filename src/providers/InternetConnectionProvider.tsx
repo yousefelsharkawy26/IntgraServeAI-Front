@@ -68,7 +68,7 @@ const InternetConnectionProvider = ({
       {children}
       {(isConnectionIssue || !networkState.online || serverError.error) && (
         <motion.div
-          className="fixed bottom-1 left-5 z-[99999] flex items-center justify-center text-right text-sm text-stone-500 select-none"
+          className="fixed bottom-1 left-5 z-99999 flex items-center justify-center text-right text-sm text-stone-500 select-none"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -80,7 +80,7 @@ const InternetConnectionProvider = ({
           >
             <Alert
               color={status.color}
-              className="cursor-pointer border-0 !p-4"
+              className="cursor-pointer border-0 p-4!"
               onClick={() => setExpanded(!expanded)}
             >
               <AlertTitle className="flex items-center gap-x-2">
@@ -102,7 +102,7 @@ const InternetConnectionProvider = ({
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
                   >
-                    <AlertDescription className="text-tiny !mt-3 space-y-1">
+                    <AlertDescription className="text-tiny mt-3! space-y-1">
                       <div className="flex w-max gap-x-2">
                         <span>Connection type:</span>
                         <span>{networkState.type || 'not exist'}</span>

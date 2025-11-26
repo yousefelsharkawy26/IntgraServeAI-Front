@@ -24,7 +24,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
     <Dialog>
       <div>
         <DialogTrigger asChild>{triggerButton}</DialogTrigger>
-        <DialogContent className="!p-5 sm:max-w-[425px]">
+        <DialogContent className="p-5! sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Create user</DialogTitle>
             <DialogDescription>
@@ -40,25 +40,25 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
             ) : dataUsersStatistics ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-md border !px-2 !py-0.5">
+                  <div className="rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">Total Users</div>
                     <div className="text-lg font-semibold">
                       {dataUsersStatistics.total_users}
                     </div>
                   </div>
-                  <div className="rounded-md border !px-2 !py-0.5">
+                  <div className="rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">Active Users</div>
                     <div className="text-lg font-semibold">
                       {dataUsersStatistics.active_users}
                     </div>
                   </div>
-                  <div className="rounded-md border !px-2 !py-0.5">
+                  <div className="rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">Inactive Users</div>
                     <div className="text-lg font-semibold">
                       {dataUsersStatistics.inactive_users}
                     </div>
                   </div>
-                  <div className="rounded-md border !px-2 !py-0.5">
+                  <div className="rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">
                       Confirmed Emails
                     </div>
@@ -66,7 +66,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
                       {dataUsersStatistics.confirmed_emails}
                     </div>
                   </div>
-                  <div className="rounded-md border !px-2 !py-0.5">
+                  <div className="rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">
                       Unconfirmed Emails
                     </div>
@@ -74,7 +74,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
                       {dataUsersStatistics.unconfirmed_emails}
                     </div>
                   </div>
-                  <div className="rounded-md border !px-2 !py-0.5">
+                  <div className="rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">
                       Recent Registrations
                     </div>
@@ -82,7 +82,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
                       {dataUsersStatistics.recent_registrations}
                     </div>
                   </div>
-                  <div className="col-span-2 rounded-md border !px-2 !py-0.5">
+                  <div className="col-span-2 rounded-md border px-2! py-0.5!">
                     <div className="text-sm text-gray-500">Recent Logins</div>
                     <div className="text-lg font-semibold">
                       {dataUsersStatistics.recent_logins}
@@ -90,7 +90,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
                   </div>
                 </div>
 
-                <div className="!mt-4">
+                <div className="mt-4!">
                   <div className="mb-2 text-sm font-medium text-gray-500">
                     Users by Role
                   </div>
@@ -99,7 +99,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
                       ([role, count]) => (
                         <div
                           key={role}
-                          className="flex justify-between rounded-md border !px-2 !py-0.5"
+                          className="flex justify-between rounded-md border px-2! py-0.5!"
                         >
                           <span>{role}</span>
                           <span className="font-semibold">{count}</span>
@@ -118,7 +118,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
           <DialogFooter>
             <DialogClose asChild>
               <Button
-                className="cursor-pointer !px-3"
+                className="cursor-pointer px-3!"
                 id="close-create-user"
                 variant="outline"
               >

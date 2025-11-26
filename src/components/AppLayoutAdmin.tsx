@@ -12,7 +12,7 @@ const AppLayoutAdmin = () => {
       <Navbar />
       <SidebarInset className="flex flex-1 flex-col">
         <main className="flex-1 overflow-auto">
-          <div className={'my-5 !ml-auto flex flex-col px-4 !py-3'}>
+          <div className={'my-5 ml-auto! flex flex-col px-4 py-3!'}>
             <Toaster className="select-none" />
             <Outlet />
           </div>

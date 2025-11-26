@@ -100,7 +100,7 @@ const FormUpdateUserRoles = ({ onError, onSubmit, classNames }: IProps) => {
                 role && (
                   <div
                     key={role.id}
-                    className="rounded-md border border-zinc-500 !px-1"
+                    className="rounded-md border border-zinc-500 px-1!"
                   >
                     {role.name}
                   </div>

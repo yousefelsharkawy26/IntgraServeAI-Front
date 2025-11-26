@@ -124,10 +124,10 @@ const FormCreateUser = ({ onSubmit, onError, classNames = {} }: IProps) => {
               <FormLabel>Role</FormLabel>
               <FormControl>
                 <Select onValueChange={(value) => field.onChange([value])}>
-                  <SelectTrigger className="cursor-pointer !px-3">
+                  <SelectTrigger className="cursor-pointer px-3!">
                     <SelectValue placeholder="Select user role" />
                   </SelectTrigger>
-                  <SelectContent className="!px-1 !py-1">
+                  <SelectContent className="px-1! py-1!">
                     {isLoadingAllRoles && (
                       <SelectItem
                         disabled
@@ -141,7 +141,7 @@ const FormCreateUser = ({ onSubmit, onError, classNames = {} }: IProps) => {
                       <SelectItem
                         key={role.id}
                         value={role.id}
-                        className="cursor-pointer !px-3"
+                        className="cursor-pointer px-3!"
                       >
                         {role.name}
                       </SelectItem>

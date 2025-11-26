@@ -103,7 +103,7 @@ const AdminUsersTable = () => {
   };
 
   return (
-    <Card className="!p-6">
+    <Card className="p-6!">
       <CardHeader>
         <CardTitle>All Users</CardTitle>
         <CardDescription>A list of all users in the system</CardDescription>
@@ -145,7 +145,7 @@ const AdminUsersTable = () => {
                     {user.roles.map((role) => (
                       <span
                         key={role}
-                        className="inline-flex items-center rounded-full bg-blue-200 !px-2.5 !py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                        className="inline-flex items-center rounded-full bg-blue-200 px-2.5! py-0.5! text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                       >
                         {role}
                       </span>
@@ -153,7 +153,7 @@ const AdminUsersTable = () => {
                   </TableCell>
                   <TableCell key={`cell-5-${user.id}`}>
                     <span
-                      className={`inline-flex items-center rounded-full !px-2.5 !py-0.5 text-xs font-medium ${
+                      className={`inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
                         user.is_active
                           ? 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : 'bg-red-200 text-gray-800 dark:bg-red-800 dark:text-gray-200'
@@ -163,9 +163,9 @@ const AdminUsersTable = () => {
                     </span>
                   </TableCell>
                   <TableCell key={`cell-6-${user.id}`} className="text-right">
-                    <div className="flex flex-row items-center justify-center !gap-4">
+                    <div className="flex flex-row items-center justify-center gap-4!">
                       <Button
-                        className={`!ml-auto h-6 w-6 cursor-pointer rounded-full p-0 text-[0.675rem] ${user.is_active ? 'bg-red-800 hover:bg-red-700' : 'bg-green-800 hover:bg-green-700'} text-white`}
+                        className={`ml-auto! h-6 w-6 cursor-pointer rounded-full p-0 text-[0.675rem] ${user.is_active ? 'bg-red-800 hover:bg-red-700' : 'bg-green-800 hover:bg-green-700'} text-white`}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleActivateToggle(user.id, user.is_active);
@@ -180,35 +180,34 @@ const AdminUsersTable = () => {
                         }
                         value={modalActions[user.id] || ''}
                       >
-                        <SelectTrigger className="!my-1 !ml-auto !h-6 cursor-pointer !px-2">
+                        <SelectTrigger className="my-1! ml-auto! h-6! cursor-pointer px-2!">
                           <Settings />
                         </SelectTrigger>
-                        <SelectContent className="!px-2 !py-2">
+                        <SelectContent className="px-2! py-2!">
                           <SelectItem
-                            className="cursor-pointer !py-0.5"
+                            className="cursor-pointer py-0.5!"
                             value="updateBasic"
                           >
                             Update Info
                           </SelectItem>
                           <SelectItem
-                            className="cursor-pointer !py-0.5"
+                            className="cursor-pointer py-0.5!"
                             value="updatePassword"
                           >
                             Update Password
                           </SelectItem>
                           <SelectItem
-                            className="cursor-pointer !py-0.5"
+                            className="cursor-pointer py-0.5!"
                             value="updateRoles"
                           >
                             Update Roles
                           </SelectItem>
                           <SelectItem
-                            className="cursor-pointer !py-0.5"
+                            className="cursor-pointer py-0.5!"
                             value="viewLogs"
                           >
                             View Logs
                           </SelectItem>
-
                         </SelectContent>
                       </Select>
                     </div>
@@ -226,7 +225,7 @@ const AdminUsersTable = () => {
         </Table>
 
         {/* Pagination */}
-        <div className="!mt-4 flex flex-col gap-4 border-t !pt-4 md:flex-row md:items-center md:justify-between">
+        <div className="mt-4! flex flex-col gap-4 border-t pt-4! md:flex-row md:items-center md:justify-between">
           {/* Items per page selector */}
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm">
@@ -236,10 +235,10 @@ const AdminUsersTable = () => {
               value={itemsPerPage.toString()}
               onValueChange={handleItemsPerPageChange}
             >
-              <SelectTrigger className="w-[70px] cursor-pointer !px-2">
+              <SelectTrigger className="w-[70px] cursor-pointer px-2!">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="!px-2 !py-2">
+              <SelectContent className="px-2! py-2!">
                 <SelectItem className="cursor-pointer" value="5">
                   5
                 </SelectItem>
@@ -323,7 +322,7 @@ const AdminUsersTable = () => {
         userId={selectedUserId}
       />
 
-      <ModalUserLogs 
+      <ModalUserLogs
         open={modalActions[selectedUserId as string] === 'viewLogs'}
         onClose={() =>
           setModalActions((prev) => ({

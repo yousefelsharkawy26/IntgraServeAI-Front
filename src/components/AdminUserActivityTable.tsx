@@ -83,7 +83,7 @@ const AdminUserActivityTable = () => {
   // };
 
   return (
-    <Card className="!p-6">
+    <Card className="p-6!">
       <CardHeader>
         <CardTitle>User Activity</CardTitle>
         <CardDescription>Track recent logins and inactivity</CardDescription>
@@ -100,10 +100,10 @@ const AdminUserActivityTable = () => {
               setCurrentPage(1);
             }}
           >
-            <SelectTrigger className="w-[150px] !px-3">
+            <SelectTrigger className="w-[150px] px-3!">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="!px-3 !py-2">
+            <SelectContent className="px-3! py-2!">
               <SelectItem value="last_login">Last Login</SelectItem>
               <SelectItem value="created_at">Created At</SelectItem>
             </SelectContent>
@@ -130,8 +130,8 @@ const AdminUserActivityTable = () => {
           <TableBody>
             {isLoadingUserActivityUsers ? (
               <TableRow>
-                <TableCell colSpan={7} className="!mx-auto py-10 text-center">
-                  <Spinner className="!mx-auto size-6" />
+                <TableCell colSpan={7} className="mx-auto! py-10 text-center">
+                  <Spinner className="mx-auto! size-6" />
                 </TableCell>
               </TableRow>
             ) : currentUsers.length > 0 ? (
@@ -165,7 +165,7 @@ const AdminUserActivityTable = () => {
                   {/* status */}
                   <TableCell>
                     <span
-                      className={`inline-flex items-center rounded-full !px-2.5 !py-0.5 text-xs font-medium ${
+                      className={`inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
                         user.is_active
                           ? 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : 'bg-red-200 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
@@ -220,7 +220,7 @@ const AdminUserActivityTable = () => {
         </Table>
 
         {/* Pagination */}
-        <div className="!mt-4 flex flex-col gap-4 border-t !pt-4 md:flex-row md:items-center md:justify-between">
+        <div className="mt-4! flex flex-col gap-4 border-t pt-4! md:flex-row md:items-center md:justify-between">
           {/* Items per page */}
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm">
@@ -230,10 +230,10 @@ const AdminUserActivityTable = () => {
               value={itemsPerPage.toString()}
               onValueChange={handleItemsPerPageChange}
             >
-              <SelectTrigger className="w-[70px] cursor-pointer !px-2">
+              <SelectTrigger className="w-[70px] cursor-pointer px-2!">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="!px-2 !py-2">
+              <SelectContent className="px-2! py-2!">
                 <SelectItem className="cursor-pointer" value="5">
                   5
                 </SelectItem>

@@ -47,12 +47,12 @@ const ModalUpdateUserRoles = ({ open, onClose, userId }: IProps) => {
   };
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="!p-5 sm:max-w-[500px]">
+      <DialogContent className="p-5! sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Update User Roles</DialogTitle>
         </DialogHeader>
         <div className="py-4">
-          <p className="!mb-4">name: {dataUserById?.full_name}</p>
+          <p className="mb-4!">name: {dataUserById?.full_name}</p>
           <FormUpdateUserRoles
             onSubmit={handleSubmit}
             onError={(errors) => {
@@ -70,7 +70,7 @@ const ModalUpdateUserRoles = ({ open, onClose, userId }: IProps) => {
             <Button
               variant="outline"
               id="close-update-user-info"
-              className="!px-3"
+              className="px-3!"
             >
               Cancel
             </Button>
@@ -78,7 +78,7 @@ const ModalUpdateUserRoles = ({ open, onClose, userId }: IProps) => {
           <Button
             form="update-user-roles-form"
             type="submit"
-            className="!px-3"
+            className="px-3!"
             disabled={isLoadingUpdateUserRoles}
           >
             {isLoadingUpdateUserRoles ? (

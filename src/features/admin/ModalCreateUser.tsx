@@ -44,7 +44,7 @@ const ModalCreateUser = ({ triggerButton }: IProps) => {
     <Dialog>
       <div>
         <DialogTrigger asChild>{triggerButton}</DialogTrigger>
-        <DialogContent className="!p-5 sm:max-w-[425px]">
+        <DialogContent className="p-5! sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Create user</DialogTitle>
             <DialogDescription>
@@ -62,12 +62,12 @@ const ModalCreateUser = ({ triggerButton }: IProps) => {
                 }
               });
             }}
-            classNames={{ inputClassName: '!px-3' }}
+            classNames={{ inputClassName: 'px-3!' }}
           />
           <DialogFooter>
             <DialogClose asChild>
               <Button
-                className="cursor-pointer !px-3"
+                className="cursor-pointer px-3!"
                 id="close-create-user"
                 variant="outline"
               >
@@ -75,7 +75,7 @@ const ModalCreateUser = ({ triggerButton }: IProps) => {
               </Button>
             </DialogClose>
             <Button
-              className="cursor-pointer !px-3"
+              className="cursor-pointer px-3!"
               disabled={isLoadingCreateUser}
               form={'create-user-form'}
               type="submit"
