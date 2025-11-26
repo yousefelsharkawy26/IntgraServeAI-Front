@@ -28,10 +28,10 @@ const items = [
 
 const AppSidebar = () => {
   return (
-    <Sidebar className="!mt-auto !h-[calc(100%-4rem)]">
+    <Sidebar className="mt-auto! h-[calc(100%-4rem)]!">
       <SidebarHeader />
       <SidebarTrigger className="absolute top-2 -right-7 rounded-md rounded-l-none border border-l-0 border-zinc-500 bg-zinc-500/40" />
-      <SidebarContent className="!px-4">
+      <SidebarContent className="px-4!">
         <SidebarGroup />
         <SidebarGroupLabel>Admin</SidebarGroupLabel>
         <SidebarGroupContent>
