@@ -21,7 +21,7 @@ const UsersAdmin = () => {
         <div className="flex flex-row gap-3">
           <ModalUsersStatistics
             triggerButton={
-              <Button className="gap-2 p-3!">
+              <Button className="cursor-pointer gap-2 p-3!">
                 <ChartArea className="h-4 w-4" />
                 Show Users Statistics
               </Button>
@@ -29,7 +29,7 @@ const UsersAdmin = () => {
           />
           <ModalCreateUser
             triggerButton={
-              <Button className="gap-2 p-3!">
+              <Button className="cursor-pointer gap-2 p-3!">
                 <UserPlus className="h-4 w-4" />
                 Add New User
               </Button>

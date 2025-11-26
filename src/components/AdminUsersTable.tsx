@@ -145,7 +145,7 @@ const AdminUsersTable = () => {
                     {user.roles.map((role) => (
                       <span
                         key={role}
-                        className="inline-flex items-center rounded-full bg-blue-200 px-2.5! py-0.5! text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                        className="mr-0.5! inline-flex items-center rounded-full bg-blue-200 px-2.5! py-0.5! text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                       >
                         {role}
                       </span>
