@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import eslint2 from 'vite-plugin-eslint2';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
@@ -8,6 +9,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [
     tailwindcss(),
+    eslint2(),
     react({
       babel: {
         plugins: [['babel-plugin-react-compiler']],

@@ -16,6 +16,7 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
       'react-refresh/only-export-components': 'off',
     },
     languageOptions: {
