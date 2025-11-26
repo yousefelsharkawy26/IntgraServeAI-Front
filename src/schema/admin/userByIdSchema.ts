@@ -1,11 +1,12 @@
 import z from 'zod';
+import { userByTokenRolesEnum } from '../userByTokenSchema';
 
 const userByIdSchema = z.object({
   id: z.string(),
   email: z.email(),
   email_confirmed: z.boolean(),
   full_name: z.string(),
-  roles: z.array(z.string()),
+  roles: z.array(userByTokenRolesEnum).min(1),
 
   is_active: z.boolean(),
 
