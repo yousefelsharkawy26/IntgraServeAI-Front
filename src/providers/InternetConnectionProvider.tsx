@@ -77,6 +77,10 @@ const InternetConnectionProvider = ({
             initial={{ height: 'auto' }}
             animate={{ height: expanded ? 'auto' : '60px' }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{
+              boxShadow:
+                '0 0 15px rgba(0,0,0,0.2), 0 0 25px rgba(0,0,0,0.15), 0 0 35px rgba(0,0,0,0.1)',
+            }}
           >
             <Alert
               color={status.color}
