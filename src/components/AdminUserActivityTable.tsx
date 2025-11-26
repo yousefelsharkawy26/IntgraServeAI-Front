@@ -165,10 +165,10 @@ const AdminUserActivityTable = () => {
                   {/* status */}
                   <TableCell>
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
+                      className={`my-1.5! inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
                         user.is_active
                           ? 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-red-200 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                          : 'bg-red-200 text-gray-800 dark:bg-red-800 dark:text-gray-200'
                       }`}
                     >
                       {user.is_active ? 'Active' : 'Sleep'}

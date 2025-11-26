@@ -163,9 +163,9 @@ const AdminUsersTable = () => {
                     </span>
                   </TableCell>
                   <TableCell key={`cell-6-${user.id}`} className="text-right">
-                    <div className="flex flex-row items-center justify-center gap-4!">
+                    <div className="flex flex-row items-center justify-end gap-2!">
                       <Button
-                        className={`ml-auto! h-6 w-6 cursor-pointer rounded-full p-0 text-[0.675rem] ${user.is_active ? 'bg-red-800 hover:bg-red-700' : 'bg-green-800 hover:bg-green-700'} text-white`}
+                        className={`h-6 w-6 cursor-pointer rounded-full p-0 text-[0.675rem] ${user.is_active ? 'bg-red-800 hover:bg-red-700' : 'bg-green-800 hover:bg-green-700'} text-white`}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleActivateToggle(user.id, user.is_active);
@@ -180,7 +180,7 @@ const AdminUsersTable = () => {
                         }
                         value={modalActions[user.id] || ''}
                       >
-                        <SelectTrigger className="my-1! ml-auto! h-6! cursor-pointer px-2!">
+                        <SelectTrigger className="my-1! h-6! cursor-pointer px-2!">
                           <Settings />
                         </SelectTrigger>
                         <SelectContent className="px-2! py-2!">
