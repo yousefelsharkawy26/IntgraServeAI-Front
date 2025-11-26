@@ -18,7 +18,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { useUserLogs } from './useUserLogs';
-import { userLogItemT } from '@/schema/admin/userLogsByIdShema';
+import { userLogItemT, userLogsResponseT } from '@/schema/admin/userLogsByIdShema';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface IProps {
@@ -39,7 +39,7 @@ const ModalUserLogs = ({ onClose, open, userId }: IProps) => {
   const username = dataUserLogs?.logs[0]?.user_name || 'Unknown User';
 
   // Helper to format the dynamic "changed_values" object
-  const renderChangedValues = (changes: Record<string, any>) => {
+  const renderChangedValues = (changes: userLogsResponseT['logs'][0]['changed_values']) => {
     if (!changes || Object.keys(changes).length === 0) return '-';
 
     return Object.entries(changes).map(([key, val], index) => {
