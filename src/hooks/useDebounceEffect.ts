@@ -10,5 +10,5 @@ export function useDebounceEffect({ effect, delay, deps }: IProps) {
   useEffect(() => {
     const handler = setTimeout(effect, delay);
     return () => clearTimeout(handler);
-  }, [delay, effect, ...deps]);
+  }, [delay, effect, deps]);
 }
