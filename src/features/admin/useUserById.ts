@@ -9,6 +9,7 @@ const useUserById = (userId: string) => {
   } = useQuery({
     queryKey: ['userById', userId],
     queryFn: () => userById(userId),
+    enabled: !!userId,
   });
 
   return {
