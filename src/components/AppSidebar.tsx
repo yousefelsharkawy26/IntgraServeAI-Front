@@ -12,21 +12,59 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
 } from './ui/sidebar';
+import { userByTokenRolesEnumT } from '@/schema/userByTokenSchema';
+import { useAuthContext } from '@/providers/context/auth-context/AuthContext';
+import { Link } from 'react-router';
 
-const items = [
+interface ISidebarItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  allowedRoles?: userByTokenRolesEnumT[];
+}
+
+const items: ISidebarItem[] = [
   {
     title: 'Users',
-    url: '/admin/users',
+    url: '/dash/users',
     icon: Users,
+    allowedRoles: ['Admin'],
   },
   {
-    title: 'Settings',
-    url: '/admin/settings',
+    title: 'Page-1',
+    url: '/dash/page-1',
     icon: Settings,
+    allowedRoles: ['Support User'],
+  },
+  {
+    title: 'Page-2',
+    url: '/dash/page-2',
+    icon: Settings,
+    allowedRoles: ['Support User'],
+  },
+  {
+    title: 'Page-3',
+    url: '/dash/page-3',
+    icon: Settings,
+    allowedRoles: ['Tech User'],
+  },
+  {
+    title: 'Page-4',
+    url: '/dash/page-4',
+    icon: Settings,
+    allowedRoles: ['Support User'],
   },
 ];
 
 const AppSidebar = () => {
+  const { dataUser } = useAuthContext();
+
+  const filteredItems = items.filter(
+    (item) =>
+      !item.allowedRoles ||
+      (dataUser?.roles.some((role) => item.allowedRoles?.includes(role)) ??
+        false),
+  );
   return (
     <Sidebar className="mt-auto! h-[calc(100%-4rem)]!">
       <SidebarHeader />
@@ -36,13 +74,13 @@ const AppSidebar = () => {
         <SidebarGroupLabel>Admin</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <a href={item.url}>
+                  <Link to={item.url}>
                     <item.icon />
                     <span>{item.title}</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

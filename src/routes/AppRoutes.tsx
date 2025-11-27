@@ -9,6 +9,8 @@ import ProtectedRoute from './ProtectedRoute.tsx';
 import AppLayoutAdmin from '@/components/AppLayoutAdmin.tsx';
 import AdminMain from '@/pages/AdminMain.tsx';
 import UsersAdmin from '@/pages/dashboard/UsersAdmin.tsx';
+import UnderDevelopmentPage from '@/pages/UnderDevelopmentPage.tsx';
+import DashRoleRedirect from './DashRoleRedirect.tsx';
 // import UnderDevelopmentPage from '../pages/UnderDevelopmentPage.tsx';
 
 const router = createBrowserRouter([
@@ -24,7 +26,7 @@ const router = createBrowserRouter([
             shouldRedirectIfLoggedIn={false}
           >
             <ProtectedRoute
-              redirectPath={'/admin'}
+              redirectPath={'/dash/users'}
               shouldRedirectIfLoggedIn={true}
             >
               <></>
@@ -36,7 +38,7 @@ const router = createBrowserRouter([
         path: '/log-in',
         element: (
           <ProtectedRoute
-            redirectPath={'/admin'}
+            redirectPath={'/dash/users'}
             shouldRedirectIfLoggedIn={true}
           >
             <Login />
@@ -50,18 +52,97 @@ const router = createBrowserRouter([
     element: <PageNotFound />,
   },
   {
-    element: <AppLayoutAdmin />,
+    path: '/dash',
+    element: (
+      <ProtectedRoute
+        redirectPath="/log-in"
+        shouldRedirectIfLoggedIn={false}
+        allowedRoles={['Admin', 'Support User', 'Tech User']}
+      >
+        <AppLayoutAdmin />
+      </ProtectedRoute>
+    ),
     errorElement: <ErrorPage />,
     children: [
       {
-        path: `/admin`,
+        index: true,
+        element: (
+          <ProtectedRoute
+            redirectPath="/log-in"
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Admin', 'Support User', 'Tech User']}
+          >
+            <DashRoleRedirect />
+          </ProtectedRoute>
+        ),
+      },
+
+      {
+        path: `users`,
         element: (
           <ProtectedRoute
             redirectPath={`/log-in`}
             shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Admin']}
           >
             <AdminMain>
               <UsersAdmin />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `page-1`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Support User']}
+          >
+            <AdminMain>
+              <UnderDevelopmentPage />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `page-2`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Support User']}
+          >
+            <AdminMain>
+              <UnderDevelopmentPage />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `page-3`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Tech User']}
+          >
+            <AdminMain>
+              <UnderDevelopmentPage />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `page-4`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Support User']}
+          >
+            <AdminMain>
+              <UnderDevelopmentPage />
             </AdminMain>
           </ProtectedRoute>
         ),
