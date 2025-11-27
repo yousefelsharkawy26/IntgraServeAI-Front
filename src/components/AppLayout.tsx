@@ -9,7 +9,7 @@ const AppLayout = () => {
       <main className="flex-1">
         <div
           className={
-            'container mx-auto my-5 flex flex-col px-4 sm:px-6 lg:px-8'
+            'container mx-auto! my-5 flex flex-col px-4 sm:px-6 lg:px-8'
           }
         >
           <Toaster className="select-none" />
