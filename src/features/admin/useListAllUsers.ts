@@ -1,8 +1,15 @@
 import { listAllUsersResponseT } from '@/schema/admin/listAllUsersSchema';
-import listAllUsers from '@/services/admin/apiListAllUsers';
+import listAllUsers, {
+  IListAllUsersParams,
+} from '@/services/admin/apiListAllUsers';
 import { useQuery } from '@tanstack/react-query';
 
-const useListAllUsers = (page: number = 1, limit: number = 10) => {
+const useListAllUsers = ({
+  page = 1,
+  limit = 10,
+  sort_by,
+  search = '',
+}: IListAllUsersParams) => {
   const {
     data: dataListAllUsers,
     isPending: isLoadingListAllUsers,
@@ -10,8 +17,8 @@ const useListAllUsers = (page: number = 1, limit: number = 10) => {
     isError: isErrorListAllUsers,
     refetch: refetchListAllUsers,
   } = useQuery<listAllUsersResponseT, Error>({
-    queryKey: ['listAllUsers', page, limit],
-    queryFn: () => listAllUsers(page, limit),
+    queryKey: ['listAllUsers', page, limit, search, sort_by],
+    queryFn: () => listAllUsers({ limit, page, search, sort_by }),
     placeholderData: undefined,
   });
 

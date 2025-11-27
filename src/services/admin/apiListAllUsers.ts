@@ -7,13 +7,22 @@ import {
   listAllUsersSuccessResponseSchema,
 } from '@/schema/admin/listAllUsersSchema';
 
-const listAllUsers = async (
-  page: number = 1,
-  limit: number = 10,
-): Promise<listAllUsersResponseT> => {
+export interface IListAllUsersParams {
+  page?: number;
+  limit?: number;
+  sort_by?: 'last_login' | 'created_at';
+  search?: string | null;
+}
+
+const listAllUsers = async ({
+  page,
+  limit,
+  sort_by,
+  search,
+}: IListAllUsersParams): Promise<listAllUsersResponseT> => {
   try {
     const response = await axiosInstance.get('/api/v1/users', {
-      params: { page, limit },
+      params: { page, limit, sort_by, search },
     });
     const validateResponse = listAllUsersSuccessResponseSchema.parse(
       response.data,

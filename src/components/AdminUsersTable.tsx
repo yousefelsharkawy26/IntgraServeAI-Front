@@ -33,12 +33,19 @@ import { useActivateAndDeactivate } from '@/features/admin/useActivateAndDeactiv
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import ModalUserLogs from '@/features/admin/ModalUserLogsById';
+import { IListAllUsersParams } from '@/services/admin/apiListAllUsers';
+import { Input } from './ui/input';
+import useDebounce from '@/hooks/useDebounce';
 
 const AdminUsersTable = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [sortBy, setSortBy] =
+    useState<IListAllUsersParams['sort_by']>('last_login');
+  const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const debouncedSearchQuery = useDebounce(searchQuery, 1000);
 
   const queryClient = useQueryClient();
 
@@ -69,7 +76,15 @@ const AdminUsersTable = () => {
     );
   };
 
-  const { dataListAllUsers } = useListAllUsers(currentPage, itemsPerPage);
+  const { dataListAllUsers } = useListAllUsers({
+    page: currentPage,
+    limit: itemsPerPage,
+    sort_by: sortBy,
+    search:
+      debouncedSearchQuery && debouncedSearchQuery.trim() !== ''
+        ? debouncedSearchQuery
+        : null,
+  });
 
   const dataAllUsers =
     dataListAllUsers && !('detail' in dataListAllUsers)
@@ -109,6 +124,42 @@ const AdminUsersTable = () => {
         <CardDescription>A list of all users in the system</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Sort selector */}
+        <div className="mb-4 flex flex-row items-center gap-3">
+          <div className="flex flex-row items-center gap-3">
+            <span className="text-muted-foreground text-sm">Sort by:</span>
+            <Select
+              value={sortBy}
+              onValueChange={(val: string) => {
+                setSortBy(val as IListAllUsersParams['sort_by']);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[150px] px-3!">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="px-3! py-2!">
+                <SelectItem value="last_login">Last Login</SelectItem>
+                <SelectItem value="created_at">Created At</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-row items-center gap-3">
+            <span className="text-muted-foreground text-sm whitespace-nowrap!">
+              search:
+            </span>
+            <Input
+              placeholder="Search with email / full name"
+              className="w-[250px] px-3!"
+              type="search"
+              value={searchQuery ?? ''}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+        </div>
         <Table>
           <TableCaption>
             Showing {startIndex + 1} to {endIndex} users
