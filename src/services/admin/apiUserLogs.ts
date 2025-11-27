@@ -6,16 +6,28 @@ import axiosInstance from '@/services/axiosInstance'; // Adjust path to your ins
 import axios from 'axios';
 import z from 'zod';
 
-const getUserLogs = async (
-  userId: string,
-  page: number = 1,
-  limit: number = 10
-): Promise<userLogsResponseT> => {
+export interface IUserLogsParams {
+  userId: string | null;
+  page: number;
+  limit: number;
+  sort_by?: 'last_login' | 'created_at';
+  search?: string | null;
+}
+
+const getUserLogs = async ({
+  limit,
+  page,
+  search,
+  sort_by,
+  userId,
+}: IUserLogsParams): Promise<userLogsResponseT> => {
   try {
     const response = await axiosInstance.get(`/api/v1/users/${userId}/logs`, {
       params: {
         page,
         limit,
+        sort_by,
+        search,
       },
     });
 
