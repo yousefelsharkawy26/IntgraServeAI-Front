@@ -4,7 +4,7 @@ import { Navbar } from './Navbar';
 
 const AppLayout = () => {
   return (
-    <div className={'flex h-[100dvh] flex-col overflow-x-hidden'}>
+    <div className={'flex h-dvh flex-col overflow-x-hidden'}>
       <Navbar />
       <main className="flex-1">
         <div
