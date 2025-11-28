@@ -32,6 +32,7 @@ const ModalCreateUser = ({ triggerButton }: IProps) => {
       onSuccess: (data) => {
         toast.success(data.message);
         queryClient.invalidateQueries({ queryKey: ['listAllUsers'] });
+        queryClient.invalidateQueries({ queryKey: ['userActivity'] });
         document.getElementById('close-create-user')?.click();
       },
       onError: (error) => {
