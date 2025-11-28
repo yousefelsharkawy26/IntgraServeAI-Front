@@ -166,11 +166,11 @@ const AdminUsersTable = () => {
           </TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="px-1!">#</TableHead>
+              <TableHead className="px-1!">Name</TableHead>
+              <TableHead className="px-1!">Email</TableHead>
+              <TableHead className="px-1!">Role</TableHead>
+              <TableHead className="px-1!">Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -185,14 +185,19 @@ const AdminUsersTable = () => {
                     setIsModalOpen(true);
                   }}
                 >
-                  <TableCell className="font-medium" key={`cell-1-${user.id}`}>
+                  <TableCell
+                    className="px-1! font-medium"
+                    key={`cell-1-${user.id}`}
+                  >
                     {startIndex + 1 + index}
                   </TableCell>
-                  <TableCell key={`cell-2-${user.id}`}>
+                  <TableCell className="px-1!" key={`cell-2-${user.id}`}>
                     {user.full_name}
                   </TableCell>
-                  <TableCell key={`cell-3-${user.id}`}>{user.email}</TableCell>
-                  <TableCell key={`cell-4-${user.id}`}>
+                  <TableCell className="px-1!" key={`cell-3-${user.id}`}>
+                    {user.email}
+                  </TableCell>
+                  <TableCell className="px-1!" key={`cell-4-${user.id}`}>
                     {user.roles.map((role) => (
                       <span
                         key={role}
@@ -202,7 +207,7 @@ const AdminUsersTable = () => {
                       </span>
                     ))}
                   </TableCell>
-                  <TableCell key={`cell-5-${user.id}`}>
+                  <TableCell className="px-1!" key={`cell-5-${user.id}`}>
                     <span
                       className={`inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
                         user.is_active
@@ -213,7 +218,10 @@ const AdminUsersTable = () => {
                       {user.is_active ? 'Active' : 'Sleep'}
                     </span>
                   </TableCell>
-                  <TableCell key={`cell-6-${user.id}`} className="text-right">
+                  <TableCell
+                    key={`cell-6-${user.id}`}
+                    className="px-1! text-right"
+                  >
                     <div className="flex flex-row items-center justify-end gap-2!">
                       <Button
                         className={`h-6 w-6 cursor-pointer rounded-full p-0 text-[0.675rem] ${user.is_active ? 'bg-red-800 hover:bg-red-700' : 'bg-green-800 hover:bg-green-700'} text-white`}

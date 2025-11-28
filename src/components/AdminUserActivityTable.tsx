@@ -117,12 +117,12 @@ const AdminUserActivityTable = () => {
 
           <TableHeader>
             <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Last Login</TableHead>
-              <TableHead>Days Since Login</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="px-1!">#</TableHead>
+              <TableHead className="px-1!">Name</TableHead>
+              <TableHead className="px-1!">Email</TableHead>
+              <TableHead className="px-1!">Last Login</TableHead>
+              <TableHead className="px-1!">Days Since Login</TableHead>
+              <TableHead className="px-1!">Status</TableHead>
               {/* <TableHead className="text-right">Actions</TableHead> */}
             </TableRow>
           </TableHeader>
@@ -144,26 +144,28 @@ const AdminUserActivityTable = () => {
                     setIsModalOpen(true);
                   }}
                 >
-                  <TableCell>{startIndex + 1 + index}</TableCell>
-                  <TableCell>{user.full_name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
+                  <TableCell className="px-1!">
+                    {startIndex + 1 + index}
+                  </TableCell>
+                  <TableCell className="px-1!">{user.full_name}</TableCell>
+                  <TableCell className="px-1!">{user.email}</TableCell>
 
                   {/* last_login */}
-                  <TableCell>
+                  <TableCell className="px-1!">
                     {user.last_login
                       ? user.last_login.toLocaleString()
                       : 'Never logged in'}
                   </TableCell>
 
                   {/* days_since_login */}
-                  <TableCell>
+                  <TableCell className="px-1!">
                     {user.days_since_login !== null
                       ? `${user.days_since_login} days`
                       : '—'}
                   </TableCell>
 
                   {/* status */}
-                  <TableCell>
+                  <TableCell className="px-1!">
                     <span
                       className={`my-1.5! inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
                         user.is_active
