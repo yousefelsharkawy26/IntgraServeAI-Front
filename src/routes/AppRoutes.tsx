@@ -11,6 +11,7 @@ import AdminMain from '@/pages/AdminMain.tsx';
 import UsersAdmin from '@/pages/dashboard/UsersAdmin.tsx';
 import UnderDevelopmentPage from '@/pages/UnderDevelopmentPage.tsx';
 import DashRoleRedirect from './DashRoleRedirect.tsx';
+import TicketsUser from '@/pages/dashboard/user/TicketsUser.tsx';
 // import UnderDevelopmentPage from '../pages/UnderDevelopmentPage.tsx';
 
 const router = createBrowserRouter([
@@ -92,15 +93,15 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: `page-1`,
+        path: `tickets`,
         element: (
           <ProtectedRoute
             redirectPath={`/log-in`}
             shouldRedirectIfLoggedIn={false}
-            allowedRoles={['Support User']}
+            allowedRoles={['Support User', 'Tech User']}
           >
             <AdminMain>
-              <UnderDevelopmentPage />
+              <TicketsUser />
             </AdminMain>
           </ProtectedRoute>
         ),

@@ -1,4 +1,4 @@
-import { Settings, Users } from 'lucide-react';
+import { Settings, Ticket, Users } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +14,7 @@ import {
 } from './ui/sidebar';
 import { userByTokenRolesEnumT } from '@/schema/userByTokenSchema';
 import { useAuthContext } from '@/providers/context/auth-context/AuthContext';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 
 interface ISidebarItem {
   title: string;
@@ -31,10 +31,10 @@ const items: ISidebarItem[] = [
     allowedRoles: ['Admin'],
   },
   {
-    title: 'Page-1',
-    url: '/dash/page-1',
-    icon: Settings,
-    allowedRoles: ['Support User'],
+    title: 'Tickets',
+    url: '/dash/tickets',
+    icon: Ticket,
+    allowedRoles: ['Support User', 'Tech User'],
   },
   {
     title: 'Page-2',
@@ -58,6 +58,7 @@ const items: ISidebarItem[] = [
 
 const AppSidebar = () => {
   const { dataUser } = useAuthContext();
+  const location = useLocation();
 
   const filteredItems = items.filter(
     (item) =>
@@ -76,7 +77,10 @@ const AppSidebar = () => {
           <SidebarMenu>
             {filteredItems.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
+                <SidebarMenuButton
+                  className={`${location.pathname === item.url ? 'bg-zinc-500/30' : ''} rounded-md px-3!`}
+                  asChild
+                >
                   <Link to={item.url}>
                     <item.icon />
                     <span>{item.title}</span>

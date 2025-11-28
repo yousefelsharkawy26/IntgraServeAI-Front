@@ -13,8 +13,8 @@ interface IProps {
 
 export const roleRedirectMap: Record<userByTokenRolesEnumT, string> = {
   Admin: '/dash/users',
-  'Support User': '/dash/page-1',
-  'Tech User': '/dash/page-3',
+  'Support User': '/dash/tickets',
+  'Tech User': '/dash/tickets',
 };
 
 /**
