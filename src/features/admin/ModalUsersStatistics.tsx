@@ -26,7 +26,7 @@ const ModalUsersStatistics = ({ triggerButton }: IProps) => {
         <DialogTrigger asChild>{triggerButton}</DialogTrigger>
         <DialogContent className="p-5! sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Create user</DialogTitle>
+            <DialogTitle>Users Statistics</DialogTitle>
             <DialogDescription>
               This users statistics, total users and active users and inactive
               users, ...etc
