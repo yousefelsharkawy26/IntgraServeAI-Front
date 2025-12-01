@@ -1,11 +1,16 @@
 import { ReactNode } from 'react';
+import { Outlet } from 'react-router';
 
 interface IProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 const AdminMain = ({ children }: IProps) => {
-  return <div className="mt-16! w-full px-2!">{children}</div>;
+  return children ? (
+    <div className="mt-16! w-full px-2!">{children}</div>
+  ) : (
+    <Outlet />
+  );
 };
 
 export default AdminMain;

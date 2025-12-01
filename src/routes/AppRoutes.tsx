@@ -12,6 +12,7 @@ import UsersAdmin from '@/pages/dashboard/UsersAdmin.tsx';
 import UnderDevelopmentPage from '@/pages/UnderDevelopmentPage.tsx';
 import DashRoleRedirect from './DashRoleRedirect.tsx';
 import TicketsUser from '@/pages/dashboard/user/TicketsUser.tsx';
+import TicketsAdmin from '@/pages/dashboard/TicketsAdmin.tsx';
 // import UnderDevelopmentPage from '../pages/UnderDevelopmentPage.tsx';
 
 const router = createBrowserRouter([
@@ -98,13 +99,55 @@ const router = createBrowserRouter([
           <ProtectedRoute
             redirectPath={`/log-in`}
             shouldRedirectIfLoggedIn={false}
-            allowedRoles={['Support User', 'Tech User']}
+            allowedRoles={['Admin', 'Support User', 'Tech User']}
           >
-            <AdminMain>
-              <TicketsUser />
-            </AdminMain>
+            <AdminMain />
           </ProtectedRoute>
         ),
+        children: [
+          {
+            index: true,
+            element: (
+              <DashRoleRedirect
+                childrenRoutes={[
+                  { path: '/dash/tickets/show', allowedRoles: ['Admin'] },
+                  {
+                    path: '/dash/tickets/manage',
+                    allowedRoles: ['Support User', 'Tech User'],
+                  },
+                ]}
+              />
+            ),
+          },
+          {
+            path: 'show',
+            element: (
+              <ProtectedRoute
+                redirectPath="/log-in"
+                shouldRedirectIfLoggedIn={false}
+                allowedRoles={['Admin']}
+              >
+                <AdminMain>
+                  <TicketsAdmin />
+                </AdminMain>
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: 'manage',
+            element: (
+              <ProtectedRoute
+                redirectPath="/log-in"
+                shouldRedirectIfLoggedIn={false}
+                allowedRoles={['Support User', 'Tech User']}
+              >
+                <AdminMain>
+                  <TicketsUser />
+                </AdminMain>
+              </ProtectedRoute>
+            ),
+          },
+        ],
       },
       {
         path: `page-2`,
