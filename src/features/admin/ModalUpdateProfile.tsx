@@ -6,21 +6,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import FormUpdateProfile from './FormUpdateProfile';
-import { userProfileResponseT } from '@/schema/admin/userProfileSchema';
+import { userByTokenT } from '@/schema/userByTokenSchema';
 
 interface IProps {
   open: boolean;
   onClose: () => void;
-  currentUser: userProfileResponseT | undefined;
+  currentUser: userByTokenT | undefined;
 }
 
 const ModalUpdateProfile = ({ open, onClose, currentUser }: IProps) => {
-  
   if (!currentUser) return null;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[525px] p-10!">
+      <DialogContent className="p-10! sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>Update Profile</DialogTitle>
           <DialogDescription>
