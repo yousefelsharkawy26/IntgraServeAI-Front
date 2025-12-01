@@ -5,7 +5,7 @@ const TicketsUser = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="ml-6! text-3xl font-bold tracking-tight">
-            Tickets Management
+            Manage Tickets
           </h1>
           <p className="text-muted-foreground mt-1">
             Manage and view users tickets
