@@ -135,12 +135,16 @@ const AdminUsersTable = () => {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="w-[150px] px-3!">
+              <SelectTrigger className="w-[150px] cursor-pointer px-3!">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="px-3! py-2!">
-                <SelectItem value="last_login">Last Login</SelectItem>
-                <SelectItem value="created_at">Created At</SelectItem>
+                <SelectItem className="cursor-pointer" value="last_login">
+                  Last Login
+                </SelectItem>
+                <SelectItem className="cursor-pointer" value="created_at">
+                  Created At
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
