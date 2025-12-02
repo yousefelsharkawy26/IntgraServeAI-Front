@@ -1,4 +1,14 @@
+import MyTicketsTable from '@/components/MyTicketsTable';
+import ModalTicketDetailsById from '@/features/shared/ModalTicketDetailsById';
+import ModalTicketWorkstation from '@/features/user/ModalTicketWorkstation';
+import { useState } from 'react';
+
 const TicketsUser = () => {
+  const [isTicketDetailsModalOpen, setIsTicketDetailsModalOpen] =
+    useState(false);
+  const [isTicketWorkstationModalOpen, setIsTicketWorkstationModalOpen] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+
   return (
     <div className="space-y-6!">
       {/* Header Section */}
@@ -32,7 +42,24 @@ const TicketsUser = () => {
       </div>
 
       {/* Users Table */}
-      {/* <AdminUsersTable /> */}
+      <MyTicketsTable
+        setIsTicketDetailsModalOpen={setIsTicketDetailsModalOpen}
+        setIsTicketWorkstationModalOpen={setIsTicketWorkstationModalOpen}
+        setSelectedTicketId={setSelectedTicketId}
+      />
+
+      <ModalTicketDetailsById
+        ticketId={selectedTicketId}
+        open={isTicketDetailsModalOpen}
+        onClose={() => setIsTicketDetailsModalOpen(false)}
+      />
+
+      <ModalTicketWorkstation
+        ticketId={selectedTicketId}
+        open={isTicketWorkstationModalOpen}
+        onClose={() => setIsTicketWorkstationModalOpen(false)}
+      />
+
       {/* User Activity Table */}
       {/* <AdminUserActivityTable /> */}
     </div>

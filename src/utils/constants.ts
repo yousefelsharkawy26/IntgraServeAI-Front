@@ -1,7 +1,7 @@
 import {
   ticketPriorityEnumT,
   ticketStatusEnumT,
-} from '@/schema/admin/allTicketsSchema';
+} from '@/schema/shared/allTicketsSchema';
 
 const ticketPriorityBGColors = (ticketPriority: ticketPriorityEnumT) => {
   return ticketPriority === 'urgent'

@@ -5,7 +5,7 @@ import {
   ticketSortByEnumT,
   ticketStatusEnumT,
   ticketTypeEnumT,
-} from '@/schema/admin/allTicketsSchema';
+} from '@/schema/shared/allTicketsSchema';
 import axiosInstance from '../axiosInstance';
 import axios from 'axios';
 

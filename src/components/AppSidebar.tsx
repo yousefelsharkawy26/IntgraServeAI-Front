@@ -1,4 +1,11 @@
-import { Edit, Eye, Settings, Tickets, Users } from 'lucide-react';
+import {
+  Edit,
+  Eye,
+  Settings,
+  Tickets,
+  Users,
+  SquareCheckBig,
+} from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -40,6 +47,12 @@ const items: ISidebarItem[] = [
         url: '/dash/tickets/show',
         icon: Eye,
         allowedRoles: ['Admin'],
+      },
+      {
+        title: 'Unassigned Tickets',
+        url: '/dash/tickets/unassigned',
+        icon: SquareCheckBig,
+        allowedRoles: ['Support User', 'Tech User'],
       },
       {
         title: 'Manage Tickets',

@@ -2,7 +2,7 @@ import {
   ticketPriorityEnumT,
   ticketStatusEnumT,
   ticketTypeEnumT,
-} from '@/schema/admin/allTicketsSchema';
+} from '@/schema/shared/allTicketsSchema';
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { motion } from 'motion/react';

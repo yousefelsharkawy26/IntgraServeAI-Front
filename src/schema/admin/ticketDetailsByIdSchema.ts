@@ -3,7 +3,7 @@ import {
   ticketPriorityEnum,
   ticketStatusEnum,
   ticketTypeEnum,
-} from './allTicketsSchema';
+} from '../shared/allTicketsSchema';
 
 const ticketDetailsByIdSchema = z.object({
   id: z.string(),

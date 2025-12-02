@@ -13,6 +13,7 @@ import UnderDevelopmentPage from '@/pages/UnderDevelopmentPage.tsx';
 import DashRoleRedirect from './DashRoleRedirect.tsx';
 import TicketsUser from '@/pages/dashboard/user/TicketsUser.tsx';
 import TicketsAdmin from '@/pages/dashboard/TicketsAdmin.tsx';
+import UnAssignedTickets from '@/pages/dashboard/user/UnAssignedTickets.tsx';
 // import UnderDevelopmentPage from '../pages/UnderDevelopmentPage.tsx';
 
 const router = createBrowserRouter([
@@ -115,6 +116,7 @@ const router = createBrowserRouter([
                     path: '/dash/tickets/manage',
                     allowedRoles: ['Support User', 'Tech User'],
                   },
+                  { path: '/dash/tickets/unassigned', allowedRoles: ['Admin', 'Support User', 'Tech User']}
                 ]}
               />
             ),
@@ -143,6 +145,20 @@ const router = createBrowserRouter([
               >
                 <AdminMain>
                   <TicketsUser />
+                </AdminMain>
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: 'unassigned',
+            element: (
+              <ProtectedRoute
+                redirectPath="/log-in"
+                shouldRedirectIfLoggedIn={false}
+                allowedRoles={['Support User', 'Tech User']}
+              >
+                <AdminMain>
+                  <UnAssignedTickets />
                 </AdminMain>
               </ProtectedRoute>
             ),
