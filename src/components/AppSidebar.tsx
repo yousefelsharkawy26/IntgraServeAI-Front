@@ -5,6 +5,9 @@ import {
   Users,
   SquareCheckBig,
   LayoutDashboard,
+  UserCircle,
+  ShieldCheck,
+  Zap,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -67,6 +70,23 @@ const items: ISidebarItem[] = [
         allowedRoles: ['Support User', 'Tech User'],
       },
     ],
+  },
+  {
+    title: 'Roles',
+    url: '/dash/roles',
+    icon: ShieldCheck,
+    allowedRoles: ['Admin'],
+  },
+  {
+    title: 'Actions',
+    url: '/dash/actions',
+    icon: Zap,
+    allowedRoles: ['Admin'],
+  },
+  {
+    title: 'My Profile',
+    url: '/dash/profile',
+    icon: UserCircle,
   },
 ];
 
