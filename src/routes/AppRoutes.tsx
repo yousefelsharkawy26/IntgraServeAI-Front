@@ -15,6 +15,11 @@ import DashboardHome from '@/pages/dashboard/DashboardHome.tsx';
 import TicketsUser from '@/pages/dashboard/user/TicketsUser.tsx';
 import TicketsAdmin from '@/pages/dashboard/TicketsAdmin.tsx';
 import UnAssignedTickets from '@/pages/dashboard/user/UnAssignedTickets.tsx';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage.tsx';
+import ResetPasswordPage from '@/pages/ResetPasswordPage.tsx';
+import ProfilePage from '@/pages/dashboard/ProfilePage.tsx';
+import RolesPage from '@/pages/dashboard/RolesPage.tsx';
+import ActionsPage from '@/pages/dashboard/ActionsPage.tsx';
 
 const router = createBrowserRouter([
   {
@@ -55,6 +60,14 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
+  },
+  {
     path: '/dash',
     element: (
       <ProtectedRoute
@@ -92,6 +105,48 @@ const router = createBrowserRouter([
           >
             <AdminMain>
               <UsersAdmin />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `actions`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Admin']}
+          >
+            <AdminMain>
+              <ActionsPage />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `roles`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Admin']}
+          >
+            <AdminMain>
+              <RolesPage />
+            </AdminMain>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: `profile`,
+        element: (
+          <ProtectedRoute
+            redirectPath={`/log-in`}
+            shouldRedirectIfLoggedIn={false}
+            allowedRoles={['Admin', 'Support User', 'Tech User']}
+          >
+            <AdminMain>
+              <ProfilePage />
             </AdminMain>
           </ProtectedRoute>
         ),
