@@ -1,4 +1,5 @@
 import { FieldErrors, SubmitHandler, useForm } from 'react-hook-form';
+import { Link } from 'react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Input } from '@/components/ui/input';
 import { LoginFormT, loginSchema } from '@/schema/loginSchema';
@@ -123,6 +124,16 @@ const FormLogin = ({ classNames = {} }: IProps) => {
             </FormItem>
           )}
         />
+
+        {/* Forgot password */}
+        <div className="flex justify-end -mt-2!">
+          <Link
+            to="/forgot-password"
+            className="text-primary text-xs hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         {/* API error banner */}
         {errorLogin && (
