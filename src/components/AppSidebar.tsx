@@ -1,10 +1,10 @@
 import {
   Edit,
   Eye,
-  Settings,
   Tickets,
   Users,
   SquareCheckBig,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -32,6 +32,12 @@ interface ISidebarItem {
 }
 
 const items: ISidebarItem[] = [
+  {
+    title: 'Dashboard',
+    url: '/dash',
+    icon: LayoutDashboard,
+    allowedRoles: ['Admin'],
+  },
   {
     title: 'Users',
     url: '/dash/users',
@@ -62,24 +68,6 @@ const items: ISidebarItem[] = [
       },
     ],
   },
-  {
-    title: 'Page-2',
-    url: '/dash/page-2',
-    icon: Settings,
-    allowedRoles: ['Support User'],
-  },
-  {
-    title: 'Page-3',
-    url: '/dash/page-3',
-    icon: Settings,
-    allowedRoles: ['Tech User'],
-  },
-  {
-    title: 'Page-4',
-    url: '/dash/page-4',
-    icon: Settings,
-    allowedRoles: ['Support User'],
-  },
 ];
 
 const AppSidebar = () => {
@@ -105,15 +93,24 @@ const AppSidebar = () => {
   const toggleGroup = (title: string) => {
     setOpenGroups((prev) => ({ ...prev, [title]: !prev[title] }));
   };
+  const showDevPages = import.meta.env.VITE_SHOW_DEV_PAGES === 'true';
+  const visibleItems = showDevPages
+    ? items
+    : items.filter(
+      (item) =>
+        !['Page-2', 'Page-3', 'Page-4'].includes(item.title),
+    );
+  const primaryRole = dataUser?.roles?.[0] ?? 'Menu';
+
   return (
     <Sidebar className="mt-auto! h-[calc(100%-4rem)]!">
       <SidebarHeader />
       <SidebarTrigger className="absolute top-2 -right-7 cursor-pointer rounded-md rounded-l-none border border-l-0 border-zinc-500 bg-zinc-500/40" />
       <SidebarContent className="px-4!">
-        <SidebarGroupLabel>Admin</SidebarGroupLabel>
+        <SidebarGroupLabel>{primaryRole}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               if (item.children && item.children.some(canSee)) {
                 const isOpen = openGroups[item.title] ?? false;
 
@@ -123,34 +120,36 @@ const AppSidebar = () => {
                       className="flex items-center justify-between rounded-md px-3!"
                       onClick={() => toggleGroup(item.title)}
                     >
-                      <div className="flex items-center gap-2">
-                        <item.icon className="mr-2 size-5" />
+                      <div className="flex items-center gap-2!">
+                        <item.icon className="mr-2! size-5!" />
                         <span>{item.title}</span>
                       </div>
 
-                      <span className="ml-2">{isOpen ? '▾' : '▸'}</span>
+                      <span className="ml-2!">{isOpen ? '▾' : '▸'}</span>
                     </SidebarMenuButton>
 
                     {isOpen && (
                       <SidebarGroupContent className="mt-1! pl-4!">
                         <SidebarMenu>
-                          {item.children.filter(canSee).map((child) => (
-                            <SidebarMenuItem key={child.title}>
-                              <SidebarMenuButton
-                                className={`${
-                                  location.pathname === child.url
-                                    ? 'bg-zinc-500/30'
-                                    : ''
-                                } rounded-md px-3!`}
-                                asChild
-                              >
-                                <Link to={child.url!}>
-                                  <child.icon className="mr-2" />
-                                  <span>{child.title}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
+                          {item.children.filter(canSee).map((child) => {
+                            const isActive = location.pathname === child.url;
+                            return (
+                              <SidebarMenuItem key={child.title}>
+                                <SidebarMenuButton
+                                  className={`rounded-md px-3! transition-colors ${isActive
+                                    ? 'bg-primary/10 font-semibold text-primary'
+                                    : 'hover:bg-primary/5 hover:text-primary'
+                                    }`}
+                                  asChild
+                                >
+                                  <Link to={child.url!}>
+                                    <child.icon className="mr-2" />
+                                    <span>{child.title}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
                         </SidebarMenu>
                       </SidebarGroupContent>
                     )}
@@ -159,16 +158,18 @@ const AppSidebar = () => {
               }
 
               if (canSee(item)) {
+                const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      className={`${
-                        location.pathname === item.url ? 'bg-zinc-500/30' : ''
-                      } rounded-md px-3!`}
+                      className={`rounded-md px-3! transition-colors ${isActive
+                        ? 'bg-primary/10 font-semibold text-primary'
+                        : 'hover:bg-primary/5 hover:text-primary'
+                        }`}
                       asChild
                     >
                       <Link to={item.url!}>
-                        <item.icon className="mr-2" />
+                        <item.icon className="mr-2!" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>

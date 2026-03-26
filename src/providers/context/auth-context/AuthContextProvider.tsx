@@ -15,7 +15,7 @@ interface IProps {
   children: ReactNode;
 }
 
-const AuthContextProvider = ({ children }: IProps) => {
+export default function AuthContextProvider({ children }: IProps) {
   const queryClient = useQueryClient();
   const token = getCookie({ name: 'token' });
 
@@ -30,7 +30,7 @@ const AuthContextProvider = ({ children }: IProps) => {
   const login = (data: LoginFormT, callbacks?: authContextCallbacksT) => {
     mutateLogin(data, {
       onSuccess: (data) => {
-        queryClient.invalidateQueries();
+        queryClient.invalidateQueries({ queryKey: ['user'] });
         callbacks?.onSuccess?.(data);
       },
       onError: (error) => {
@@ -56,4 +56,3 @@ const AuthContextProvider = ({ children }: IProps) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export default AuthContextProvider;

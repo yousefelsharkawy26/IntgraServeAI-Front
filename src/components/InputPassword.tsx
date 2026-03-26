@@ -35,9 +35,9 @@ const InputPassword = <T extends FieldValues>({
       <button
         type="button"
         onClick={togglePasswordVisibility}
-        className="absolute top-1/2 right-3 -translate-y-1/2 transform cursor-pointer text-gray-500"
+        className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3! -translate-y-1/2! cursor-pointer transition-colors"
       >
-        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
     </div>
   );

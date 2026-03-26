@@ -69,7 +69,6 @@ const ProtectedRoute = ({
   const { dataUser, isLoggedIn, isLoadingUser } = useAuthContext();
   const navigate = useNavigate();
 
-  console.log('isLoggedIn', isLoggedIn);
   useEffect(() => {
     if (isLoadingUser) return;
 

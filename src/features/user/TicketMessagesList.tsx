@@ -31,7 +31,7 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
   if (isLoadingMessages && !dataMessages) {
     return (
       <div className="flex justify-center py-8!">
-        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <Loader2 className="text-muted-foreground h-6! w-6! animate-spin" />
       </div>
     );
   }
@@ -39,7 +39,7 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
   if (errorMessages) {
     return (
       <div className="flex justify-center py-8! text-red-500">
-        <AlertCircle className="mr-2 h-6 w-6" />
+        <AlertCircle className="mr-2! h-6! w-6!" />
         Failed to load
       </div>
     );
@@ -54,8 +54,8 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
   }
 
   return (
-    <div className="min-h-[300px] space-y-4! p-4!">
-      <div className="flex flex-col gap-4">
+    <div className="min-h-[300px]! space-y-4! p-4!">
+      <div className="flex flex-col gap-4!">
         {messages.map((msg: messageT) => {
           const isAgent = msg.sender_type === 'agent';
           const isInternal = msg.is_internal_note;
@@ -65,12 +65,12 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
             <div
               key={msg.id}
               className={cn(
-                'flex w-full flex-col gap-1',
+                'flex w-full! flex-col gap-1!',
                 isAgent ? 'items-end' : 'items-start',
               )}
             >
               {/* Sender Name */}
-              <span className="text-muted-foreground px-1! text-[10px]">
+              <span className="text-muted-foreground px-1! text-[10px]!">
                 {msg.sender_name} •{' '}
                 {new Date(msg.created_at).toLocaleTimeString([], {
                   hour: '2-digit',
@@ -81,7 +81,7 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
               {/* Message Bubble */}
               <div
                 className={cn(
-                  'relative max-w-[85%] rounded-2xl px-4! py-3! text-sm shadow-sm',
+                  'relative max-w-[85%]! rounded-2xl! px-4! py-3! text-sm! shadow-sm!',
                   isInternal
                     ? 'border border-yellow-200 bg-yellow-50 text-yellow-900'
                     : isAgent
@@ -90,15 +90,15 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
                 )}
               >
                 {isInternal && (
-                  <span className="mb-2! block border-b border-yellow-200 pb-1! text-[10px] font-bold tracking-wider text-yellow-700 uppercase">
+                  <span className="mb-2! block border-b border-yellow-200 pb-1! text-[10px]! font-bold tracking-wider text-yellow-700 uppercase">
                     Internal Note
                   </span>
                 )}
 
-                {/* 1. النص */}
+                {/* 1. Message text */}
                 <p className="whitespace-pre-wrap">{msg.message_text}</p>
 
-                {/* 2. المرفقات (إذا وجدت) */}
+                {/* 2. Attachments (if any) */}
                 {hasAttachments && (
                   <div
                     className={`mt-3! space-y-2! ${isAgent && !isInternal ? 'text-blue-100' : 'text-gray-600'}`}
@@ -110,7 +110,7 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className={cn(
-                          'group flex items-center gap-3 rounded-md border p-2! transition-colors',
+                          'group flex items-center gap-3! rounded-md! border! p-2! transition-colors!',
                           isAgent && !isInternal
                             ? 'border-blue-500 bg-blue-700/50 hover:bg-blue-700'
                             : 'border-gray-200 bg-gray-50 hover:bg-gray-100',
@@ -124,10 +124,10 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
                               : 'border bg-white text-gray-500',
                           )}
                         >
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-4! w-4!" />
                         </div>
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0! flex-1">
                           <p
                             className={cn(
                               'truncate text-xs font-medium',
@@ -140,7 +140,7 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
                           </p>
                           <p
                             className={cn(
-                              'text-[10px]',
+                              'text-[10px]!',
                               isAgent && !isInternal
                                 ? 'text-blue-200'
                                 : 'text-gray-500',
@@ -152,7 +152,7 @@ const TicketMessagesList = ({ ticketId }: TicketMessagesListProps) => {
 
                         <Download
                           className={cn(
-                            'h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100',
+                            'h-4! w-4! opacity-0! transition-opacity! group-hover:opacity-100!',
                             isAgent && !isInternal
                               ? 'text-white'
                               : 'text-gray-500',

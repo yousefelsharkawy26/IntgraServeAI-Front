@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import HamburgerIconSVG from './svg/HamburgerIconSVG';
 import ThemeToggle from './ThemeToggle';
 import ProfileMenu from './ProfileMenu';
+import { Bot } from 'lucide-react';
+import { useNavigate } from 'react-router';
 
 export interface NavbarNavLink {
   href: string;
@@ -53,6 +55,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
   ) => {
     const [isMobile, setIsMobile] = useState(false);
     const containerRef = useRef<HTMLElement>(null);
+    const navigate = useNavigate();
     useEffect(() => {
       const checkWidth = () => {
         if (containerRef.current) {
@@ -80,37 +83,42 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
       },
       [ref],
     );
+
+    const navToDashBoard = (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      navigate('/dash');
+    };
     return (
       <header
         ref={combinedRef}
         className={cn(
-          'bg-background/95 supports-backdrop-filter:bg-background/60 !md:px-6 fixed top-0 z-50 w-full border-b px-4! backdrop-blur **:no-underline',
+          'fixed top-0 z-50 w-full border-b bg-background/80 px-4! backdrop-blur-md supports-backdrop-filter:bg-background/60 **:no-underline md:px-6!',
           className,
         )}
         {...props}
       >
-        <div className="container mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto flex h-16! max-w-screen-2xl! items-center justify-between gap-4!">
+          <div className="flex items-center gap-2!">
             {isMobile && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    className="group hover:bg-accent hover:text-accent-foreground h-9 w-9"
+                    className="group hover:bg-accent hover:text-accent-foreground h-9! w-9!"
                     variant="ghost"
                     size="icon"
                   >
                     <HamburgerIconSVG />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-48 p-2">
-                  <NavigationMenu className="max-w-none">
-                    <NavigationMenuList className="flex-col items-start gap-1">
+                <PopoverContent align="start" className="w-48! p-2!">
+                  <NavigationMenu className="max-w-none!">
+                    <NavigationMenuList className="flex-col items-start gap-1!">
                       {navigationLinks.map((link, index) => (
-                        <NavigationMenuItem key={index} className="w-full">
+                        <NavigationMenuItem key={index} className="w-full!">
                           <button
                             onClick={(e) => e.preventDefault()}
                             className={cn(
-                              'hover:bg-accent hover:text-accent-foreground flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium no-underline transition-colors',
+                              'hover:bg-accent hover:text-accent-foreground flex w-full! cursor-pointer items-center rounded-md px-3! py-2! text-sm! font-medium! no-underline! transition-colors!',
                               link.active
                                 ? 'bg-accent text-accent-foreground'
                                 : 'text-foreground/80',
@@ -125,12 +133,15 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                 </PopoverContent>
               </Popover>
             )}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6!">
               <button
-                onClick={(e) => e.preventDefault()}
-                className="text-primary hover:text-primary/90 flex cursor-pointer items-center space-x-2 transition-colors"
+                onClick={navToDashBoard}
+                className="flex cursor-pointer items-center gap-2! transition-opacity hover:opacity-80"
               >
-                <span className="hidden text-xl font-bold sm:inline-block">
+                <div className="bg-primary flex h-8! w-8! items-center justify-center rounded-lg">
+                  <Bot className="h-4! w-4! text-white" />
+                </div>
+                <span className="hidden bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-lg! font-bold! text-transparent! sm:inline-block">
                   intgraServeAI
                 </span>
               </button>
@@ -142,7 +153,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                         <button
                           onClick={(e) => e.preventDefault()}
                           className={cn(
-                            'group hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground inline-flex h-9 w-max cursor-pointer items-center justify-center rounded-md px-4 py-2 text-sm font-medium no-underline transition-colors focus:outline-none disabled:pointer-events-none disabled:opacity-50',
+                            'group hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground inline-flex h-9! w-max! cursor-pointer items-center justify-center rounded-md px-4! py-2! text-sm! font-medium! no-underline! transition-colors! focus:outline-none! disabled:pointer-events-none! disabled:opacity-50!',
                             link.active
                               ? 'bg-accent text-accent-foreground'
                               : 'text-foreground/80 hover:text-foreground',
@@ -157,7 +168,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3!">
             {/* Profile Menu */}
 
             <ProfileMenu />

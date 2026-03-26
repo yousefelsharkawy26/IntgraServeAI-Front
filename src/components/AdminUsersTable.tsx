@@ -22,7 +22,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import {
+  MoreHorizontal,
+  Pencil,
+  KeyRound,
+  Shield,
+  ScrollText,
+  Users,
+} from 'lucide-react';
+import TableSkeleton from './ui/TableSkeleton';
+import EmptyState from './ui/EmptyState';
 import { useState } from 'react';
 import { useListAllUsers } from '@/features/admin/useListAllUsers';
 import ModalUserById from '@/features/admin/ModalUserById';
@@ -36,6 +52,9 @@ import ModalUserLogs from '@/features/admin/ModalUserLogsById';
 import { IListAllUsersParams } from '@/services/admin/apiListAllUsers';
 import { Input } from './ui/input';
 import useDebounce from '@/hooks/useDebounce';
+import TablePagination from './ui/TablePagination';
+
+type ActiveModal = { userId: string; action: string } | null;
 
 const AdminUsersTable = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -49,9 +68,7 @@ const AdminUsersTable = () => {
 
   const queryClient = useQueryClient();
 
-  const [modalActions, setModalActions] = useState<
-    Record<string, string | null>
-  >({});
+  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
 
   const { mutateActivateAndDeactivate, isLoadingActivateAndDeactivate } =
     useActivateAndDeactivate();
@@ -76,7 +93,7 @@ const AdminUsersTable = () => {
     );
   };
 
-  const { dataListAllUsers } = useListAllUsers({
+  const { dataListAllUsers, isLoadingListAllUsers } = useListAllUsers({
     page: currentPage,
     limit: itemsPerPage,
     sort_by: sortBy,
@@ -108,13 +125,13 @@ const AdminUsersTable = () => {
     setCurrentPage(1);
   };
 
-  const handleModalActionChange = (userId: string, action: string) => {
-    setModalActions((prev) => ({
-      ...prev,
-      [userId]: action,
-    }));
-
+  const openModal = (userId: string, action: string) => {
     setSelectedUserId(userId);
+    setActiveModal({ userId, action });
+  };
+
+  const closeModal = () => {
+    setActiveModal(null);
   };
 
   return (
@@ -125,8 +142,8 @@ const AdminUsersTable = () => {
       </CardHeader>
       <CardContent>
         {/* Sort selector */}
-        <div className="mb-4 flex flex-row items-center gap-3">
-          <div className="flex flex-row items-center gap-3">
+        <div className="mb-4! flex flex-row items-center gap-3!">
+          <div className="flex flex-row items-center gap-3!">
             <span className="text-muted-foreground text-sm">Sort by:</span>
             <Select
               value={sortBy}
@@ -135,7 +152,7 @@ const AdminUsersTable = () => {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="w-[150px] cursor-pointer px-3!">
+              <SelectTrigger className="w-[150px]! cursor-pointer px-3!">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="px-3! py-2!">
@@ -148,13 +165,13 @@ const AdminUsersTable = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-row items-center gap-3">
+          <div className="flex flex-row items-center gap-3!">
             <span className="text-muted-foreground text-sm whitespace-nowrap!">
               search:
             </span>
             <Input
               placeholder="Search with email / full name"
-              className="w-[250px] px-3!"
+              className="w-[250px]! px-3!"
               type="search"
               value={searchQuery ?? ''}
               onChange={(e) => {
@@ -179,7 +196,9 @@ const AdminUsersTable = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {currentUsers.length > 0 ? (
+            {isLoadingListAllUsers ? (
+              <TableSkeleton rows={itemsPerPage} cols={6} />
+            ) : currentUsers.length > 0 ? (
               currentUsers.map((user, index) => (
                 <TableRow
                   key={`Row-${user.id}`}
@@ -213,13 +232,12 @@ const AdminUsersTable = () => {
                   </TableCell>
                   <TableCell className="px-1!" key={`cell-5-${user.id}`}>
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${
-                        user.is_active
+                      className={`inline-flex items-center rounded-full px-2.5! py-0.5! text-xs font-medium ${user.is_active
                           ? 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : 'bg-red-200 text-gray-800 dark:bg-red-800 dark:text-gray-200'
-                      }`}
+                        }`}
                     >
-                      {user.is_active ? 'Active' : 'Sleep'}
+                      {user.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
                   <TableCell
@@ -227,124 +245,103 @@ const AdminUsersTable = () => {
                     className="px-1! text-right"
                   >
                     <div className="flex flex-row items-center justify-end gap-2!">
+                      {/* Activate / Deactivate toggle button */}
                       <Button
-                        className={`h-6 w-6 cursor-pointer rounded-full p-0 text-[0.675rem] ${user.is_active ? 'bg-red-800 hover:bg-red-700' : 'bg-green-800 hover:bg-green-700'} text-white`}
+                        size="sm"
+                        className={`h-6! w-14! cursor-pointer rounded-full p-0! text-[0.675rem]! font-semibold ${user.is_active
+                            ? 'bg-red-600 hover:bg-red-500'
+                            : 'bg-green-700 hover:bg-green-600'
+                          } text-white`}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleActivateToggle(user.id, user.is_active);
                         }}
                         disabled={isLoadingActivateAndDeactivate}
                       >
-                        {user.is_active ? 'off' : 'on'}
+                        {user.is_active ? 'Deactivate' : 'Activate'}
                       </Button>
-                      <Select
-                        onValueChange={(action) =>
-                          handleModalActionChange(user.id, action)
-                        }
-                        value={modalActions[user.id] || ''}
-                      >
-                        <SelectTrigger className="my-1! h-6! cursor-pointer px-2!">
-                          <Settings />
-                        </SelectTrigger>
-                        <SelectContent className="px-2! py-2!">
-                          <SelectItem
-                            className="cursor-pointer py-0.5!"
-                            value="updateBasic"
+
+                      {/* Actions dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7! w-7! cursor-pointer rounded-full p-0!"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            Update Info
-                          </SelectItem>
-                          <SelectItem
-                            className="cursor-pointer py-0.5!"
-                            value="updatePassword"
+                            <MoreHorizontal className="h-4! w-4!" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openModal(user.id, 'updateBasic');
+                            }}
                           >
-                            Update Password
-                          </SelectItem>
-                          <SelectItem
-                            className="cursor-pointer py-0.5!"
-                            value="updateRoles"
+                            <Pencil className="h-4! w-4!" />
+                            Edit Info
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openModal(user.id, 'updatePassword');
+                            }}
                           >
+                            <KeyRound className="h-4! w-4!" />
+                            Change Password
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openModal(user.id, 'updateRoles');
+                            }}
+                          >
+                            <Shield className="h-4! w-4!" />
                             Update Roles
-                          </SelectItem>
-                          <SelectItem
-                            className="cursor-pointer py-0.5!"
-                            value="viewLogs"
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openModal(user.id, 'viewLogs');
+                            }}
                           >
+                            <ScrollText className="h-4! w-4!" />
                             View Logs
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  No users found
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    icon={Users}
+                    title="No users found"
+                    description="Try adjusting your search"
+                  />
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
 
-        {/* Pagination */}
-        <div className="mt-4! flex flex-col gap-4 border-t pt-4! md:flex-row md:items-center md:justify-between">
-          {/* Items per page selector */}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Rows per page:
-            </span>
-            <Select
-              value={itemsPerPage.toString()}
-              onValueChange={handleItemsPerPageChange}
-            >
-              <SelectTrigger className="w-[70px] cursor-pointer px-2!">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="px-2! py-2!">
-                <SelectItem className="cursor-pointer" value="5">
-                  5
-                </SelectItem>
-                <SelectItem className="cursor-pointer" value="10">
-                  10
-                </SelectItem>
-                <SelectItem className="cursor-pointer" value="20">
-                  20
-                </SelectItem>
-                <SelectItem className="cursor-pointer" value="50">
-                  50
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Page info and navigation */}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Page {currentPage} of {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                className="cursor-pointer"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="cursor-pointer"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+        />
       </CardContent>
 
       <ModalUserById
@@ -353,47 +350,24 @@ const AdminUsersTable = () => {
         onClose={() => setIsModalOpen(false)}
       />
       <ModalUpdateUserBasic
-        open={modalActions[selectedUserId as string] === 'updateBasic'}
-        onClose={() =>
-          setModalActions((prev) => ({
-            ...prev,
-            [selectedUserId as string]: null,
-          }))
-        }
-        userId={selectedUserId}
+        open={activeModal?.action === 'updateBasic'}
+        onClose={closeModal}
+        userId={activeModal?.userId ?? null}
       />
-
       <ModalUpdateUserPassword
-        open={modalActions[selectedUserId as string] === 'updatePassword'}
-        onClose={() =>
-          setModalActions((prev) => ({
-            ...prev,
-            [selectedUserId as string]: null,
-          }))
-        }
-        userId={selectedUserId}
+        open={activeModal?.action === 'updatePassword'}
+        onClose={closeModal}
+        userId={activeModal?.userId ?? null}
       />
-
       <ModalUpdateUserRoles
-        open={modalActions[selectedUserId as string] === 'updateRoles'}
-        onClose={() =>
-          setModalActions((prev) => ({
-            ...prev,
-            [selectedUserId as string]: null,
-          }))
-        }
-        userId={selectedUserId}
+        open={activeModal?.action === 'updateRoles'}
+        onClose={closeModal}
+        userId={activeModal?.userId ?? null}
       />
-
       <ModalUserLogs
-        open={modalActions[selectedUserId as string] === 'viewLogs'}
-        onClose={() =>
-          setModalActions((prev) => ({
-            ...prev,
-            [selectedUserId as string]: null,
-          }))
-        }
-        userId={selectedUserId}
+        open={activeModal?.action === 'viewLogs'}
+        onClose={closeModal}
+        userId={activeModal?.userId ?? null}
       />
     </Card>
   );

@@ -15,14 +15,9 @@ import {
   TableRow,
 } from './ui/table';
 import { Button } from './ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-import { ChevronLeft, ChevronRight, Eye, Mail } from 'lucide-react';
+import { Eye, Mail, Ticket } from 'lucide-react';
+import TableSkeleton from './ui/TableSkeleton';
+import EmptyState from './ui/EmptyState';
 import { useState } from 'react';
 import useDebounce from '@/hooks/useDebounce';
 import { useMyTickets } from '@/features/user/useMyTickets';
@@ -30,8 +25,9 @@ import { IMyTicketsParams } from '@/services/user/apiMyTickets';
 import {
   ticketPriorityBGColors,
   ticketStatusBGColors,
-} from '@/utils/constants'; // Assumed utility for colors
-import MyTicketsFilters from './AdminTicketsFilters'; // You would create this similar to AdminFilters
+} from '@/utils/constants';
+import MyTicketsFilters from './AdminTicketsFilters';
+import TablePagination from './ui/TablePagination';
 
 interface IProps {
   setSelectedTicketId: (id: string) => void;
@@ -143,11 +139,7 @@ const MyTicketsTable = ({
 
           <TableBody>
             {isLoadingMyTickets ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center">
-                  Loading your tickets...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton rows={itemsPerPage} cols={7} />
             ) : currentTickets.length > 0 ? (
               currentTickets.map((ticket, index) => (
                 <TableRow
@@ -211,65 +203,25 @@ const MyTicketsTable = ({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="py-10! text-center">
-                  You haven't submitted any tickets yet.
+                <TableCell colSpan={7}>
+                  <EmptyState
+                    icon={Ticket}
+                    title="No tickets found"
+                    description="Try adjusting your filters or search term"
+                  />
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
 
-        {/* Pagination Section */}
-        <div className="mt-4 flex flex-col gap-4 border-t pt-4! md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Rows per page:
-            </span>
-            <Select
-              value={itemsPerPage.toString()}
-              onValueChange={handleItemsPerPageChange}
-            >
-              <SelectTrigger className="w-[70px] px-3!">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem className="px-2! py-1!" value="5">
-                  5
-                </SelectItem>
-                <SelectItem className="px-2! py-1!" value="10">
-                  10
-                </SelectItem>
-                <SelectItem className="px-2! py-1!" value="20">
-                  20
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Page {currentPage} of {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+        />
       </CardContent>
     </Card>
   );

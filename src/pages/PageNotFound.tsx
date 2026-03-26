@@ -5,16 +5,16 @@ import { useLocation } from 'react-router';
 const PageNotFound = () => {
   const location = useLocation();
   return (
-    <div className={'flex w-full flex-col'}>
+    <div className={'flex w-full! flex-col'}>
       <title>{metaTags.PageNotFound.title}</title>
       <meta name="description" content={metaTags.PageNotFound.description} />
       <meta name="keywords" content={metaTags.PageNotFound.keywords} />
-      <ButtonMoveBack />
-      <div className={'my-4 flex flex-col items-center justify-center gap-3'}>
-        <p className={'text-3xl'}>OMG 😥</p>
+      <ButtonMoveBack className="relative! top-1! left-5! p-[8px]! cursor-pointer!" />
+      <div className={'my-4! flex flex-col items-center justify-center gap-3!'}>
+        <p className={'text-3xl!'}>OMG 😥</p>
         <p
           className={
-            "before:text-secondary relative flex flex-row gap-2 px-2 before:absolute before:-top-2 before:left-full before:text-center before:text-3xl before:content-['-']"
+            "before:text-secondary relative flex flex-row gap-2! px-2! before:absolute before:-top-2 before:left-full before:text-center before:text-3xl before:content-['-']"
           }
         >
           <span className="">That route doesn't actually exist.</span>

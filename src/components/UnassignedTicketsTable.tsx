@@ -22,8 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Input } from './ui/input'; // Assuming you have this
-import { ChevronLeft, ChevronRight, Loader2, UserPlus } from 'lucide-react'; // UserPlus icon for "Assign" action
+import { Input } from './ui/input';
+import { Loader2, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import useDebounce from '@/hooks/useDebounce';
 import { useUnassignedTickets } from '@/features/user/useUnassignedTickets';
@@ -37,6 +37,10 @@ import {
   ticketSortByEnumT,
 } from '@/schema/shared/allTicketsSchema';
 import { useAssignTicket } from '@/features/user/useAssignTicket';
+import TablePagination from './ui/TablePagination';
+import TableSkeleton from './ui/TableSkeleton';
+import EmptyState from './ui/EmptyState';
+import { TicketCheck } from 'lucide-react';
 
 const UnassignedTicketsTable = () => {
   // State
@@ -71,7 +75,7 @@ const UnassignedTicketsTable = () => {
   const handleClaimTicket = (ticketId: string) => {
     setLoadingTicketId(ticketId);
     assignTicket(ticketId, {
-      onSettled: () => setLoadingTicketId(null), // إيقاف اللودينج سواء نجح أو فشل
+      onSettled: () => setLoadingTicketId(null),
     });
   };
 
@@ -182,11 +186,7 @@ const UnassignedTicketsTable = () => {
 
           <TableBody>
             {isLoadingUnassignedTickets ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center">
-                  Loading unassigned tickets...
-                </TableCell>
-              </TableRow>
+              <TableSkeleton rows={itemsPerPage} cols={7} />
             ) : currentTickets.length > 0 ? (
               currentTickets.map((ticket, index) => (
                 <TableRow
@@ -254,66 +254,25 @@ const UnassignedTicketsTable = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="py-10! text-center">
-                  No unassigned tickets found. Good job!
+                <TableCell colSpan={7}>
+                  <EmptyState
+                    icon={TicketCheck}
+                    title="No unassigned tickets"
+                    description="All tickets are assigned — great work!"
+                  />
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
 
-        {/* Pagination */}
-        <div className="mt-4! flex flex-col gap-4 border-t pt-4! md:flex-row md:items-center md:justify-between">
-          {/* Same Pagination Logic as before */}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Rows per page:
-            </span>
-            <Select
-              value={itemsPerPage.toString()}
-              onValueChange={handleItemsPerPageChange}
-            >
-              <SelectTrigger className="w-[70px] px-3!">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem className="px-2! py-1!" value="5">
-                  5
-                </SelectItem>
-                <SelectItem className="px-2! py-1!" value="10">
-                  10
-                </SelectItem>
-                <SelectItem className="px-2! py-1!" value="20">
-                  20
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Page {currentPage} of {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+        />
       </CardContent>
     </Card>
   );

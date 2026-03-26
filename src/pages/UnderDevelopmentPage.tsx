@@ -10,8 +10,8 @@ const UnderDevelopmentPage = () => {
         content={metaTage.UnderDevelopmentPage.description}
       />
       <meta name="keywords" content={metaTage.UnderDevelopmentPage.keywords} />
-      <ButtonMoveBack className="relative! top-0! left-5!" />
-      <h1>Still under development</h1>
+      <ButtonMoveBack className="relative! top-1! left-5! p-[8px]! cursor-pointer!" />
+      <h1 className="mt-[50px]! text-center!">Still under development</h1>
     </div>
   );
 };

@@ -33,7 +33,7 @@ axiosInstance.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       deleteCookie({ name: 'token' });
-      // window.location.href('/');
+      window.location.href = '/log-in';
     }
     return Promise.reject(error);
   },
