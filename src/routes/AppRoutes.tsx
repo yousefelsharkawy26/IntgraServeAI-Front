@@ -11,10 +11,10 @@ import AdminMain from '@/pages/AdminMain.tsx';
 import UsersAdmin from '@/pages/dashboard/UsersAdmin.tsx';
 import UnderDevelopmentPage from '@/pages/UnderDevelopmentPage.tsx';
 import DashRoleRedirect from './DashRoleRedirect.tsx';
+import DashboardHome from '@/pages/dashboard/DashboardHome.tsx';
 import TicketsUser from '@/pages/dashboard/user/TicketsUser.tsx';
 import TicketsAdmin from '@/pages/dashboard/TicketsAdmin.tsx';
 import UnAssignedTickets from '@/pages/dashboard/user/UnAssignedTickets.tsx';
-// import UnderDevelopmentPage from '../pages/UnderDevelopmentPage.tsx';
 
 const router = createBrowserRouter([
   {
@@ -29,22 +29,11 @@ const router = createBrowserRouter([
             shouldRedirectIfLoggedIn={false}
           >
             <ProtectedRoute
-              redirectPath={'/dash/users'}
+              redirectPath={'/dash'}
               shouldRedirectIfLoggedIn={true}
             >
               <></>
             </ProtectedRoute>
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: '/log-in',
-        element: (
-          <ProtectedRoute
-            redirectPath={'/dash/users'}
-            shouldRedirectIfLoggedIn={true}
-          >
-            <Login />
           </ProtectedRoute>
         ),
       },
@@ -53,6 +42,17 @@ const router = createBrowserRouter([
   {
     path: '*',
     element: <PageNotFound />,
+  },
+  {
+    path: '/log-in',
+    element: (
+      <ProtectedRoute
+        redirectPath={'/dash'}
+        shouldRedirectIfLoggedIn={true}
+      >
+        <Login />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/dash',
@@ -75,7 +75,9 @@ const router = createBrowserRouter([
             shouldRedirectIfLoggedIn={false}
             allowedRoles={['Admin', 'Support User', 'Tech User']}
           >
-            <DashRoleRedirect />
+            <AdminMain>
+              <DashboardHome />
+            </AdminMain>
           </ProtectedRoute>
         ),
       },
@@ -116,7 +118,10 @@ const router = createBrowserRouter([
                     path: '/dash/tickets/manage',
                     allowedRoles: ['Support User', 'Tech User'],
                   },
-                  { path: '/dash/tickets/unassigned', allowedRoles: ['Admin', 'Support User', 'Tech User']}
+                  {
+                    path: '/dash/tickets/unassigned',
+                    allowedRoles: ['Admin', 'Support User', 'Tech User'],
+                  },
                 ]}
               />
             ),
