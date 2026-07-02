@@ -1,7 +1,6 @@
-import { ReactNode, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import useNetworkState, { useServerConnection } from '../hooks/useNetworkState';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Spinner } from '@/components/ui/spinner.tsx';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface InternetConnectionProviderProps {
@@ -11,7 +10,7 @@ interface InternetConnectionProviderProps {
 
 const InternetConnectionProvider = ({
   children,
-  showSpeedDetails = false,
+  showSpeedDetails = true,
 }: InternetConnectionProviderProps) => {
   const networkState = useNetworkState();
   console.log('networkState', networkState);
@@ -28,13 +27,13 @@ const InternetConnectionProvider = ({
   const getConnectionStatus = (): {
     icon: string | ReactNode;
     message: string;
-    color: 'danger' | 'warning' | 'default' | 'success';
+    variant: 'destructive' | 'default';
   } => {
     if (!networkState.online) {
       return {
         icon: '⚠️',
         message: 'Not connected to the internet',
-        color: 'danger',
+        variant: 'destructive',
       };
     }
 
@@ -42,7 +41,7 @@ const InternetConnectionProvider = ({
       return {
         icon: '💔',
         message: 'Server connection lost',
-        color: 'danger',
+        variant: 'destructive',
       };
     }
 
@@ -50,14 +49,14 @@ const InternetConnectionProvider = ({
       return {
         icon: '⚡',
         message: 'Your internet is slow or unstable',
-        color: 'warning',
+        variant: 'default',
       };
     }
 
     return {
       icon: '✅',
       message: 'Connection is good',
-      color: 'default',
+      variant: 'default',
     };
   };
 
@@ -66,8 +65,7 @@ const InternetConnectionProvider = ({
   return (
     <>
       {children}
-      {(isConnectionIssue || !networkState.online || serverError.error) && (
-        <motion.div
+      <motion.div
           className="fixed bottom-1 left-5 z-99999 flex items-center justify-center text-right text-sm text-stone-500 select-none"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -83,18 +81,12 @@ const InternetConnectionProvider = ({
             }}
           >
             <Alert
-              color={status.color}
+              variant={status.variant}
               className="cursor-pointer border-0 p-4!"
               onClick={() => setExpanded(!expanded)}
             >
               <AlertTitle className="flex items-center gap-x-2">
-                <span className="">
-                  {!networkState.online ? (
-                    <span className="text-xl">{status.icon}</span>
-                  ) : (
-                    <Spinner className="size-6" />
-                  )}
-                </span>
+                <span className="text-xl">{status.icon}</span>
                 <span className="w-max">{status.message}</span>
               </AlertTitle>
 
@@ -134,7 +126,6 @@ const InternetConnectionProvider = ({
             </Alert>
           </motion.div>
         </motion.div>
-      )}
     </>
   );
 };
