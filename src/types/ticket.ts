@@ -1,4 +1,4 @@
-export type TicketStatus = 'open' | 'in_progress' | 'pending' | 'escalated' | 'resolved' | 'closed' | 'cancelled'
+export type TicketStatus = 'open' | 'in_progress' | 'pending' | 'escalated' | 'resolved' | 'closed' | 'canceled'
 export type TicketPriority = 'urgent' | 'high' | 'medium' | 'low'
 export type TicketSource = 'email' | 'chat' | 'web' | 'api' | 'widget'
 

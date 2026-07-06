@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ticketService } from '@/services/ticket.service'
 import { useNotificationStore } from '@/store/notificationStore'
 import { QUERY_KEYS } from '@/constants/queryKeys'
-import type { TicketFilters, UpdateTicketData } from '@/types/ticket'
+import type { CreateTicketData, TicketFilters, UpdateTicketData } from '@/types/ticket'
 
 export function useTickets(filters: TicketFilters) {
   return useQuery({
@@ -32,15 +32,24 @@ export function useTicketMutations() {
   const addToast = useNotificationStore((state) => state.addToast)
 
   const createTicket = useMutation({
-    mutationFn: ticketService.createTicket,
-    onSuccess: (newTicket) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tickets })
-      addToast({ type: 'success', title: 'Ticket created', message: `New ticket #${newTicket.id} created successfully.` })
-    },
-    onError: (err: any) => {
-      addToast({ type: 'error', title: 'Failed to create ticket', message: err?.response?.data?.message || 'Please try again.' })
-    },
-  })
+  mutationFn: (data: CreateTicketData) => ticketService.createTicket(data),
+  onSuccess: (newTicket) => {
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tickets })
+    addToast({
+      type: 'success',
+      title: 'Ticket created',
+      message: `New ticket #${newTicket.id} created successfully.`,
+    })
+  },
+  onError: (err: any) => {
+    console.error('Error creating ticket:', err)
+    addToast({
+      type: 'error',
+      title: 'Failed to create ticket',
+      message: err?.response?.data?.message || 'Please try again.',
+    })
+  },
+})
 
   const updateTicket = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTicketData }) => ticketService.updateTicket(id, data),

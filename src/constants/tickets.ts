@@ -7,7 +7,7 @@ export const TICKET_STATUS_CONFIG: Record<TicketStatus, { label: string; color: 
   escalated: { label: 'Escalated', color: 'text-purple-700', bgColor: 'bg-purple-50' },
   resolved: { label: 'Resolved', color: 'text-green-700', bgColor: 'bg-green-50' },
   closed: { label: 'Closed', color: 'text-gray-700', bgColor: 'bg-gray-100' },
-  cancelled: { label: 'Cancelled', color: 'text-red-700', bgColor: 'bg-red-50' },
+  canceled: { label: 'Canceled', color: 'text-red-700', bgColor: 'bg-red-50' },
 }
 
 export const TICKET_PRIORITY_CONFIG: Record<TicketPriority, { label: string; color: string; dotColor: string }> = {
@@ -17,7 +17,7 @@ export const TICKET_PRIORITY_CONFIG: Record<TicketPriority, { label: string; col
   low: { label: 'Low', color: 'text-green-700', dotColor: 'bg-green-500' },
 }
 
-export const TICKET_STATUSES: TicketStatus[] = ['open', 'in_progress', 'pending', 'escalated', 'resolved', 'closed', 'cancelled']
+export const TICKET_STATUSES: TicketStatus[] = ['open', 'in_progress', 'pending', 'escalated', 'resolved', 'closed', 'canceled']
 export const TICKET_PRIORITIES: TicketPriority[] = ['urgent', 'high', 'medium', 'low']
 
 export const KANBAN_COLUMNS: TicketStatus[] = ['open', 'in_progress', 'pending', 'escalated', 'resolved']

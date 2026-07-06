@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   ArrowLeft,
   Clock,
@@ -24,15 +24,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { TICKET_STATUSES, TICKET_STATUS_CONFIG } from '@/constants/tickets'
 
+const MAX_REPLY_LENGTH = 2000
+
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: ticket, isLoading } = useTicketDetail(id || '')
+  const {
+    data: ticket,
+    isLoading,
+    isError,
+    error,
+  } = useTicketDetail(id || '')
   const { changeStatus, assignTicket, addMessage, addNote } = useTicketMutations()
   const [replyText, setReplyText] = useState('')
   const [noteText, setNoteText] = useState('')
+  const [confirmAction, setConfirmAction] = useState<'close' | 'escalate' | null>(null)
 
-  if (isLoading || !ticket) {
+  const replyRef = useRef<HTMLTextAreaElement>(null)
+  const conversationEndRef = useRef<HTMLDivElement>(null)
+
+  const messages = ticket?.messages ?? []
+
+  // Auto-focus reply box on open (Enhancement)
+  // These hooks must run on every render regardless of loading/error state,
+  // so they live above all early returns (Rules of Hooks).
+  useEffect(() => {
+    if (ticket) {
+      replyRef.current?.focus()
+    }
+  }, [ticket?.id])
+
+  // Auto-scroll to latest message (Enhancement)
+  useEffect(() => {
+    if (ticket) {
+      conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages.length, ticket?.id])
+
+  // Priority 1.1: Error state handling
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
@@ -42,25 +72,69 @@ export default function TicketDetail() {
     )
   }
 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <p className="text-sm font-semibold text-red-600">Failed to load ticket</p>
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+          {error instanceof Error ? error.message : 'Something went wrong.'}
+        </p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/tickets')}>
+          Back to tickets
+        </Button>
+      </div>
+    )
+  }
+
+  if (!ticket) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <p className="text-sm font-semibold text-[var(--color-text-primary)]">Ticket not found</p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/tickets')}>
+          Back to tickets
+        </Button>
+      </div>
+    )
+  }
+
   const handleStatusChange = (newStatus: string) => {
     changeStatus.mutate({ id: ticket.id, status: newStatus })
   }
 
   const handleReply = () => {
-    if (!replyText.trim()) return
+    if (!replyText.trim() || addMessage.isPending) return
     addMessage.mutate({ id: ticket.id, content: replyText.trim() })
     setReplyText('')
   }
 
+  const handleReplyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      handleReply()
+    }
+  }
+
   const handleAddNote = () => {
-    if (!noteText.trim()) return
+    if (!noteText.trim() || addNote.isPending) return
     addNote.mutate({ id: ticket.id, content: noteText.trim() })
     setNoteText('')
   }
 
-  const messages = ticket.messages || []
-  const notes = ticket.internalNotes || []
-  const activities = ticket.activityLog || []
+  const requestCloseTicket = () => setConfirmAction('close')
+  const requestEscalateTicket = () => setConfirmAction('escalate')
+
+  const confirmActionRun = () => {
+    if (confirmAction === 'close') {
+      changeStatus.mutate({ id: ticket.id, status: 'closed' })
+    } else if (confirmAction === 'escalate') {
+      changeStatus.mutate({ id: ticket.id, status: 'escalated' })
+    }
+    setConfirmAction(null)
+  }
+
+  const notes = ticket.internalNotes ?? []
+  const activities = ticket.activityLog ?? []
+  const tags = ticket.tags ?? []
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -104,7 +178,7 @@ export default function TicketDetail() {
                   {/* Customer original description */}
                   <div className="flex gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white bg-gradient-to-br from-green-400 to-teal-500">
-                      {ticket.customerName.charAt(0)}
+                      {(ticket.customerName ?? '?').charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -126,7 +200,7 @@ export default function TicketDetail() {
                         msg.sender === 'customer' ? 'bg-gradient-to-br from-green-400 to-teal-500' :
                         'bg-gradient-to-br from-blue-400 to-purple-500'
                       }`}>
-                        {msg.senderName.charAt(0)}
+                        {(msg.senderName ?? '?').charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -139,6 +213,7 @@ export default function TicketDetail() {
                       </div>
                     </div>
                   ))}
+                  <div ref={conversationEndRef} />
 
                   <Separator />
 
@@ -149,19 +224,33 @@ export default function TicketDetail() {
                     </div>
                     <div className="flex-1">
                       <Textarea
-                        placeholder="Type your reply..."
+                        ref={replyRef}
+                        placeholder="Type your reply... (Ctrl+Enter to send)"
                         value={replyText}
+                        maxLength={MAX_REPLY_LENGTH}
                         onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={handleReplyKeyDown}
+                        disabled={addMessage.isPending}
                         className="min-h-[80px] rounded-lg border-[var(--color-border-medium)] bg-[var(--color-bg-base)] text-sm resize-none"
                       />
+                      <div className="mt-1 flex justify-end">
+                        <span className="text-[11px] text-[var(--color-text-muted)]">
+                          {replyText.length} / {MAX_REPLY_LENGTH}
+                        </span>
+                      </div>
                       <div className="mt-2 flex items-center justify-between">
                         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs rounded-full">
                           <Paperclip className="h-3.5 w-3.5" />
                           Attach
                         </Button>
-                        <Button size="sm" className="h-8 gap-1.5 text-xs rounded-full bg-[var(--color-text-primary)]" onClick={handleReply}>
+                        <Button
+                          size="sm"
+                          className="h-8 gap-1.5 text-xs rounded-full bg-[var(--color-text-primary)]"
+                          onClick={handleReply}
+                          disabled={!replyText.trim() || addMessage.isPending}
+                        >
                           <Send className="h-3.5 w-3.5" />
-                          Send Reply
+                          {addMessage.isPending ? 'Sending...' : 'Send Reply'}
                         </Button>
                       </div>
                     </div>
@@ -197,12 +286,18 @@ export default function TicketDetail() {
                       placeholder="Add an internal note..."
                       value={noteText}
                       onChange={(e) => setNoteText(e.target.value)}
+                      disabled={addNote.isPending}
                       className="min-h-[60px] rounded-lg border-[var(--color-border-medium)] bg-[var(--color-bg-base)] text-sm resize-none"
                     />
                     <div className="mt-2 flex justify-end">
-                      <Button size="sm" className="h-8 gap-1.5 text-xs rounded-full bg-[var(--color-text-primary)]" onClick={handleAddNote}>
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs rounded-full bg-[var(--color-text-primary)]"
+                        onClick={handleAddNote}
+                        disabled={!noteText.trim() || addNote.isPending}
+                      >
                         <StickyNote className="h-3.5 w-3.5" />
-                        Add Note
+                        {addNote.isPending ? 'Adding...' : 'Add Note'}
                       </Button>
                     </div>
                   </div>
@@ -213,17 +308,21 @@ export default function TicketDetail() {
             <TabsContent value="activity" className="mt-3">
               <Card className="border-[var(--color-border-light)]">
                 <CardContent className="p-4">
-                  <div className="relative space-y-4 pl-4 before:absolute before:left-0 before:top-0 before:h-full before:w-px before:bg-[var(--color-border-light)]">
-                    {activities.map((act) => (
-                      <div key={act.id} className="relative">
-                        <div className="absolute -left-[18px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-bg-surface)] bg-[var(--color-accent-blue)]" />
-                        <p className="text-sm text-[var(--color-text-primary)]">{act.action}</p>
-                        <p className="text-xs text-[var(--color-text-muted)]">
-                          by {act.actorName} at {new Date(act.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  {activities.length === 0 ? (
+                    <p className="text-xs text-[var(--color-text-muted)] text-center py-4">No activity yet.</p>
+                  ) : (
+                    <div className="relative space-y-4 pl-4 before:absolute before:left-0 before:top-0 before:h-full before:w-px before:bg-[var(--color-border-light)]">
+                      {activities.map((act) => (
+                        <div key={act.id} className="relative">
+                          <div className="absolute -left-[18px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--color-bg-surface)] bg-[var(--color-accent-blue)]" />
+                          <p className="text-sm text-[var(--color-text-primary)]">{act.action}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            by {act.actorName} at {new Date(act.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -240,7 +339,7 @@ export default function TicketDetail() {
             <CardContent className="space-y-3">
               <div>
                 <label className="text-xs font-medium text-[var(--color-text-muted)]">Change Status</label>
-                <Select value={ticket.status} onValueChange={handleStatusChange}>
+                <Select value={ticket.status} onValueChange={handleStatusChange} disabled={changeStatus.isPending}>
                   <SelectTrigger className="mt-1 h-9 rounded-lg border-[var(--color-border-medium)] text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -251,21 +350,66 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {!ticket.assignedTo && (
-                <Button variant="outline" className="w-full h-9 text-xs rounded-full bg-[var(--color-accent-blue)] text-white hover:bg-[var(--color-accent-blue)]/90" onClick={() => assignTicket.mutate({ id: ticket.id })}>
-                  Assign to Me
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-xs rounded-full bg-[var(--color-accent-blue)] text-white hover:bg-[var(--color-accent-blue)]/90"
+                  onClick={() => assignTicket.mutate({ id: ticket.id })}
+                  disabled={assignTicket.isPending}
+                >
+                  {assignTicket.isPending ? 'Assigning...' : 'Assign to Me'}
                 </Button>
               )}
               {ticket.status !== 'escalated' && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-                <Button variant="outline" className="w-full h-9 text-xs rounded-full" onClick={() => changeStatus.mutate({ id: ticket.id, status: 'escalated' })}>
-                  Escalate Ticket
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-xs rounded-full"
+                  onClick={requestEscalateTicket}
+                  disabled={changeStatus.isPending}
+                >
+                  {changeStatus.isPending ? 'Updating...' : 'Escalate Ticket'}
                 </Button>
               )}
-              {ticket.status !== 'closed' && ticket.status !== 'cancelled' && (
-                <Button variant="outline" className="w-full h-9 text-xs rounded-full text-red-600 hover:bg-red-50" onClick={() => changeStatus.mutate({ id: ticket.id, status: 'closed' })}>
-                  Close Ticket
+              {ticket.status !== 'closed' && ticket.status !== 'canceled' && (
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-xs rounded-full text-red-600 hover:bg-red-50"
+                  onClick={requestCloseTicket}
+                  disabled={changeStatus.isPending}
+                >
+                  {changeStatus.isPending ? 'Updating...' : 'Close Ticket'}
                 </Button>
+              )}
+
+              {/* Priority 3.14: Confirmation dialog for destructive/important actions */}
+              {confirmAction && (
+                <div className="rounded-lg border border-[var(--color-border-medium)] bg-[var(--color-bg-base)] p-3 space-y-2">
+                  <p className="text-xs text-[var(--color-text-primary)]">
+                    {confirmAction === 'close'
+                      ? 'Are you sure you want to close this ticket?'
+                      : 'Are you sure you want to escalate this ticket?'}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-8 flex-1 text-xs rounded-full bg-[var(--color-text-primary)]"
+                      onClick={confirmActionRun}
+                      disabled={changeStatus.isPending}
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 flex-1 text-xs rounded-full"
+                      onClick={() => setConfirmAction(null)}
+                      disabled={changeStatus.isPending}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -298,7 +442,7 @@ export default function TicketDetail() {
           </Card>
 
           {/* Tags */}
-          {ticket.tags.length > 0 && (
+          {tags.length > 0 && (
             <Card className="border-[var(--color-border-light)]">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -308,7 +452,7 @@ export default function TicketDetail() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-1.5">
-                  {ticket.tags.map((tag) => (
+                  {tags.map((tag) => (
                     <span key={tag} className="rounded-full bg-[var(--color-bg-base)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)]">
                       {tag}
                     </span>
