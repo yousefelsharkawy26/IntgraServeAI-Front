@@ -1,15 +1,13 @@
-import useConsoleLogProduction from './hooks/useConsoleLogProduction';
-import AppRoutes from './routes/AppRoutes';
-import { Toaster } from 'sonner';
+import { AppRoutes } from './routes'
+import { useThemeStore } from './store/themeStore'
+import { useEffect } from 'react'
 
-function App() {
-  useConsoleLogProduction();
-  return (
-    <>
-      <AppRoutes />
-      <Toaster richColors position="top-right" />
-    </>
-  );
+export default function App() {
+  const { theme } = useThemeStore()
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
+
+  return <AppRoutes />
 }
-
-export default App;

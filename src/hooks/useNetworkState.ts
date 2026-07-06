@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import {
-  NavigatorWithNetworkInfo,
-  NetworkInformation,
-  NetworkServerErrorStateT,
-  NetworkStateT,
-} from '../types';
-import axiosInstance from '@/services/axiosInstance';
+import { 
+    type NavigatorWithNetworkInfo, 
+    type NetworkInformation,
+    type NetworkServerErrorStateT, 
+    type NetworkStateT } 
+from '../types/network';
 import axios from 'axios';
+import { API_ENDPOINTS } from '@/constants/api'
 
 function isShallowEqual(
   object1: Partial<NetworkStateT>,
@@ -64,7 +64,7 @@ export const useServerConnection = () => {
 
   const checkServerConnection = async () => {
     try {
-      await axiosInstance.get('/health');
+      await axios.get(`${API_ENDPOINTS.health.check}`);
       setServerError({ error: null });
       console.log('not server error');
     } catch (error) {

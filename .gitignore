@@ -22,20 +22,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-.vercel
-
-# Ignore TypeScript build info files
-*.tsbuildinfo
-/build/
-.eslintcache
-
-# Ignore environment files
-.env
-
-# vite-plugin-pwa files / this folder only created with doing `npm run dev` not `npm run build`
-dev-dist/
-
-certs/
-
-.vercel
+.agent/

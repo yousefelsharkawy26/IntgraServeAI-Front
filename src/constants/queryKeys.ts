@@ -1,0 +1,17 @@
+export const QUERY_KEYS = {
+  tickets: ['tickets'],
+  ticket: (id: string) => ['tickets', id],
+  ticketMessages: (id: string) => ['tickets', id, 'messages'],
+  users: ['users'],
+  user: (id: string) => ['users', id],
+  userLogs: (id: string) => ['users', id, 'logs'],
+  myLogs: ['users', 'me', 'logs'],
+  actions: ['actions'],
+  action: (id: string) => ['actions', id],
+  backups: ['backups'],
+  backup: (id: string) => ['backups', id],
+  backupCompare: (id: string) => ['backups', id, 'compare'],
+  roles: ['roles'],
+  myRoles: ['roles', 'me'],
+  dashboard: ['dashboard'],
+} as const
