@@ -30,7 +30,6 @@ interface CreateTicketModalProps {
 }
 
 export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
-  const navigate = useNavigate()
   const { createTicket } = useTicketMutations()
 
   const {
@@ -67,7 +66,7 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
 
   const onSubmit = (data: CreateTicketFormData) => {
     createTicket.mutate(data, {
-      onSuccess: (newTicket) => {
+      onSuccess: () => {
         onClose()
       },
     })
