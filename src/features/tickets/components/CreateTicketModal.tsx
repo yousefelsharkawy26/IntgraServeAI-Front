@@ -69,7 +69,6 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
     createTicket.mutate(data, {
       onSuccess: (newTicket) => {
         onClose()
-        navigate(`/tickets/${newTicket.id}`)
       },
     })
   }

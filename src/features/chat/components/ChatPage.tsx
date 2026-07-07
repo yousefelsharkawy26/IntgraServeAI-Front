@@ -3,7 +3,7 @@
 // Full-page premium AI chat experience
 // ============================================================
 
-import React, { useCallback, useEffect, useRef, useMemo } from 'react'
+import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   PanelLeft, CircleDot,
@@ -21,6 +21,7 @@ import { ImagePreviewModal } from './ChatAttachmentCard'
 import { StatusBadge } from './ChatAvatar'
 import type { PendingFile, ChatMessage } from '../types'
 import '../chat.css'
+import { CreateTicketModal } from '@/features/tickets/components/CreateTicketModal'
 // ============================================================
 // Demo user - replace with your auth system
 // ============================================================
@@ -41,6 +42,7 @@ export default function ChatPage() {
   const previewImage = useChatStore((s) => s.previewImage)
   const connectionStatus = useChatStore((s) => s.connectionStatus)
   const config = useChatStore((s) => s.config)
+  const [isCreateTicketModalOpen, setIsCreateTicketModalOpen] = useState(false)
 
   const toggleSidebar = useChatStore((s) => s.toggleSidebar)
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
@@ -74,6 +76,7 @@ export default function ChatPage() {
   } = useChatWebSocket({
     customerEmail: DEMO_USER.email,
     customerName: DEMO_USER.name,
+    setIsCreateTicketModalOpen,
   })
 
   // ---- Sync WebSocket state to store ----
@@ -283,6 +286,11 @@ export default function ChatPage() {
           />
         )}
       </AnimatePresence>
+
+      <CreateTicketModal 
+        open={isCreateTicketModalOpen}
+        onClose={() => setIsCreateTicketModalOpen(false)}
+      />
     </ChatLayout>
   )
 }

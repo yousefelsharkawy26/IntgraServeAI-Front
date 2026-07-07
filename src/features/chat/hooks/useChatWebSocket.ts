@@ -17,6 +17,7 @@ import type { ChatMessage, PendingAction, ToolCallInfo } from '../types'
 export interface ChatWebSocketOptions {
   customerEmail: string
   customerName: string
+  setIsCreateTicketModalOpen: (isOpen: boolean) => void
 }
 
 export interface UseChatWebSocketReturn {
@@ -57,7 +58,7 @@ function getOrCreateSessionId(): string {
 // Hook
 // -------------------------------------------------------
 
-export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketOptions): UseChatWebSocketReturn {
+export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicketModalOpen }: ChatWebSocketOptions): UseChatWebSocketReturn {
   // ---- State ----
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
@@ -290,12 +291,14 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         case 'show_ticket_dialogue': {
-          setMessages((prev) => [...prev, {
-            id: `ticket-${generateId()}`,
-            content: `Opening ticket form for ${data.action_name}...`,
-            sender: 'system',
-            timestamp: new Date().toISOString(),
-          }])
+          setIsTyping(false)
+          setPendingAction({
+            toolCallId: data.tool_call_id,
+            actionName: data.action_name,
+            params: data.params,
+          })
+
+          setIsCreateTicketModalOpen(true)
           break
         }
       }
