@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Plus, LayoutGrid, List, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { Search, Plus, LayoutGrid, List, Filter } from 'lucide-react'
+
 import { useTickets } from '../hooks/useTickets'
 import { CreateTicketModal } from './CreateTicketModal'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -12,8 +13,11 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
+import { Pagination } from '@/components/common/Pagination'
+
 import { TICKET_STATUSES, TICKET_PRIORITIES, KANBAN_COLUMNS, TICKET_STATUS_CONFIG } from '@/constants/tickets'
 import type { TicketStatus, TicketPriority } from '@/types/ticket'
+import { PAGE_SIZE } from '@/features/users/lib/constants'
 
 const rowVariants = {
   hidden: { opacity: 0, y: 12 },
@@ -31,6 +35,7 @@ export default function TicketQueue() {
   const [priority, setPriority] = useState<TicketPriority | 'all'>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(PAGE_SIZE)
   const [createOpen, setCreateOpen] = useState(false)
 
   const { data, isLoading } = useTickets({
@@ -38,10 +43,41 @@ export default function TicketQueue() {
     priority,
     search: search || undefined,
     page,
-    limit: 10,
+    limit,                          // ← use state, not hardcoded
     sortBy: 'updatedAt',
     sortOrder: 'desc',
   })
+
+  const total = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / limit))
+
+  // If filters/search reduce the result count, snap back to the last valid page
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  // Snap to page 1 if filters cause current page to be out of range
+  useEffect(() => {
+    if (page > totalPages) setPage(1)
+  }, [status, priority, search, totalPages])
+
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const tickets = data?.tickets ?? []
+
+  const handleLimitChange = (l: number) => {
+    setLimit(l)
+    setPage(1)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handlePageChange = (p: number) => {
+    setPage(p)
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      document
+        .getElementById('activity-section')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   return (
     <motion.div className="space-y-4">
@@ -138,7 +174,7 @@ export default function TicketQueue() {
                     </div>
                   ))}
                 </div>
-              ) : data?.tickets.length === 0 ? (
+              ) : tickets.length === 0 ? (
                 <EmptyState
                   title="No tickets found"
                   description="Create your first ticket to get started."
@@ -159,7 +195,7 @@ export default function TicketQueue() {
                     </thead>
                     <tbody>
                       <AnimatePresence>
-                        {data?.tickets.map((ticket, i) => (
+                        {tickets.map((ticket, i) => (
                           <motion.tr
                             key={ticket.id}
                             custom={i}
@@ -188,50 +224,17 @@ export default function TicketQueue() {
             </CardContent>
           </Card>
 
-          {/* Pagination */}
-          {data && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Page {page} of {data.totalPages} ({data.total} total)
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full text-[var(--color-text-muted)]"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                {Array.from({ length: Math.min(5, data.totalPages) }, (_, i) => {
-                  const start = Math.max(1, page - 2)
-                  const p = start + i
-                  if (p > data.totalPages) return null
-                  return (
-                    <Button
-                      key={p}
-                      variant={p === page ? 'default' : 'ghost'}
-                      size="icon"
-                      className={`h-8 w-8 rounded-full text-xs font-medium ${
-                        p === page ? 'bg-[var(--color-accent-orange)] text-white hover:bg-[var(--color-accent-orange)]' : 'text-[var(--color-text-muted)]'
-                      }`}
-                      onClick={() => setPage(p)}
-                    >
-                      {p}
-                    </Button>
-                  )
-                })}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full text-[var(--color-text-muted)]"
-                  disabled={page >= data.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+          {/* Pagination — only show if there's more than one page worth of data */}
+          {!isLoading && total > 0 && (
+            <div className="mt-5 border-t border-[var(--color-border-light)] pt-4">
+              <Pagination
+                page={safePage}
+                total={total}
+                limit={limit}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
+                showLimitSelect
+              />
             </div>
           )}
         </RevealCard>
@@ -240,37 +243,36 @@ export default function TicketQueue() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {KANBAN_COLUMNS.map((status) => {
               const column = TICKET_STATUS_CONFIG[status]
+              const columnTickets = tickets.filter((t) => t.status === status)
               return (
                 <div key={status} className="rounded-lg border border-[var(--color-border-light)] bg-[var(--color-bg-surface)] p-3 transition-all duration-300 hover:shadow-md">
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{column.label}</h3>
                     <span className="rounded-full bg-[var(--color-bg-base)] px-2 py-0.5 text-xs text-[var(--color-text-muted)]">
-                      {data?.tickets.filter((t) => t.status === status).length || 0}
+                      {columnTickets.length}
                     </span>
                   </div>
                   <div className="space-y-2 min-h-[120px]">
-                    {data?.tickets
-                      .filter((t) => t.status === status)
-                      .map((ticket, i) => (
-                        <motion.div
-                          key={ticket.id}
-                          custom={i}
-                          variants={rowVariants}
-                          initial="hidden"
-                          animate="visible"
-                          className="cursor-pointer rounded-lg border border-[var(--color-border-light)] bg-[var(--color-bg-base)] p-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
-                          onClick={() => navigate(`/tickets/${ticket.id}`)}
-                        >
-                          <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{ticket.subject}</p>
-                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{ticket.customerName}</p>
-                          <div className="mt-2 flex items-center justify-between">
-                            <PriorityBadge priority={ticket.priority as TicketPriority} />
-                            <span className="text-[10px] text-[var(--color-text-muted)]">
-                              {new Date(ticket.updatedAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </motion.div>
-                      ))}
+                    {columnTickets.map((ticket, i) => (
+                      <motion.div
+                        key={ticket.id}
+                        custom={i}
+                        variants={rowVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="cursor-pointer rounded-lg border border-[var(--color-border-light)] bg-[var(--color-bg-base)] p-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+                        onClick={() => navigate(`/tickets/${ticket.id}`)}
+                      >
+                        <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{ticket.subject}</p>
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">{ticket.customerName}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <PriorityBadge priority={ticket.priority as TicketPriority} />
+                          <span className="text-[10px] text-[var(--color-text-muted)]">
+                            {new Date(ticket.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 </div>
               )

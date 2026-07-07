@@ -53,6 +53,8 @@ export const API_ENDPOINTS = {
     messageDetail: (id: string) => `/chat/messages/${id}`,
     upload: '/chat/upload',
     attachments: (id: string) => `/chat/messages/${id}/attachments`,
+    conversations: '/chat/conversations',
+    conversationDetail: (id: string) => `/chat/conversations/${id}`,
   },
   health: {
     check: `${SERVER_URL}/health`,

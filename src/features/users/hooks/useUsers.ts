@@ -1,17 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { userService, type CreateUserData, type UpdateUserBasicInfo, type UpdateUserRolesData, type UpdateUserPasswordData, type BulkUserOperationData } from '@/services/user.service'
+
+import {
+  userService,
+  type CreateUserData,
+  type UpdateUserBasicInfo,
+  type UpdateUserRolesData,
+  type UpdateUserPasswordData,
+  type BulkUserOperationData,
+} from '@/services/user.service'
+
 import { useNotificationStore } from '@/store/notificationStore'
+
 import { QUERY_KEYS } from '@/constants/queryKeys'
+
 import type { UserFilters } from '@/types'
+
+// ─── queries ────────────────────────────────────────────────────────────────
 
 export function useUsers(filters?: Partial<UserFilters>) {
   return useQuery({
     queryKey: [...QUERY_KEYS.users, filters],
-    queryFn: () => userService.getUsers({
-      page: 1,
-      limit: 10,
-      ...filters
-    }),
+    queryFn: () => userService.getUsers({ page: 1, limit: 10, ...filters }),
   })
 }
 
@@ -38,14 +47,17 @@ export function useUserLogs(userId: string, page = 1, limit = 10) {
   })
 }
 
+// ─── mutations ──────────────────────────────────────────────────────────────
+
 export function useUserMutations() {
   const queryClient = useQueryClient()
   const addToast = useNotificationStore((state) => state.addToast)
+  const invalidateUsers = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users })
 
   const createUser = useMutation({
     mutationFn: (data: CreateUserData) => userService.createUser(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users })
+      invalidateUsers()
       addToast({ type: 'success', title: 'User created', message: 'New user account has been created.' })
     },
     onError: (err: any) => {
@@ -56,7 +68,7 @@ export function useUserMutations() {
   const updateBasicInfo = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateUserBasicInfo }) => userService.updateUserBasicInfo(id, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users })
+      invalidateUsers()
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user(variables.id) })
       addToast({ type: 'success', title: 'User updated', message: 'User information saved.' })
     },
@@ -78,7 +90,7 @@ export function useUserMutations() {
   const updateRoles = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateUserRolesData }) => userService.updateUserRoles(id, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users })
+      invalidateUsers()
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user(variables.id) })
       addToast({ type: 'success', title: 'Roles updated', message: 'User roles have been changed.' })
     },
@@ -90,7 +102,7 @@ export function useUserMutations() {
   const bulkActivate = useMutation({
     mutationFn: (data: BulkUserOperationData) => userService.bulkActivateUsers(data),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users })
+      invalidateUsers()
       addToast({ type: 'success', title: 'Bulk activation complete', message: `${result.successful} of ${result.total_requested} users activated.` })
     },
     onError: (err: any) => {
@@ -101,7 +113,7 @@ export function useUserMutations() {
   const bulkDeactivate = useMutation({
     mutationFn: (data: BulkUserOperationData) => userService.bulkDeactivateUsers(data),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users })
+      invalidateUsers()
       addToast({ type: 'success', title: 'Bulk deactivation complete', message: `${result.successful} of ${result.total_requested} users deactivated.` })
     },
     onError: (err: any) => {
@@ -109,5 +121,44 @@ export function useUserMutations() {
     },
   })
 
-  return { createUser, updateBasicInfo, updatePassword, updateRoles, bulkActivate, bulkDeactivate }
+  // NEW — single user activate / deactivate
+  // Assumes userService exposes:
+  //   activateUser(id):   POST /users/:id/activate
+  //   deactivateUser(id): POST /users/:id/deactivate
+  // If your service only has the bulk endpoint, swap to:
+  //   mutationFn: (id) => userService.bulkActivateUsers({ user_ids: [id] })
+  const activateUser = useMutation({
+    mutationFn: (id: string) => userService.bulkActivateUsers({ user_ids: [id] }),
+    onSuccess: (_, id) => {
+      invalidateUsers()
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user(id) })
+      addToast({ type: 'success', title: 'User activated', message: 'User has been activated.' })
+    },
+    onError: (err: any) => {
+      addToast({ type: 'error', title: 'Activation failed', message: err?.response?.data?.message || 'Please try again.' })
+    },
+  })
+
+  const deactivateUser = useMutation({
+    mutationFn: (id: string) => userService.bulkDeactivateUsers({ user_ids: [id] }),
+    onSuccess: (_, id) => {
+      invalidateUsers()
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.user(id) })
+      addToast({ type: 'success', title: 'User deactivated', message: 'User has been deactivated.' })
+    },
+    onError: (err: any) => {
+      addToast({ type: 'error', title: 'Deactivation failed', message: err?.response?.data?.message || 'Please try again.' })
+    },
+  })
+
+  return {
+    createUser,
+    updateBasicInfo,
+    updatePassword,
+    updateRoles,
+    bulkActivate,
+    bulkDeactivate,
+    activateUser,    // NEW
+    deactivateUser,  // NEW
+  }
 }

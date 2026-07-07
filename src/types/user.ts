@@ -24,6 +24,7 @@ export interface UserActivityLog {
   details?: string
   ipAddress?: string
   userAgent?: string
+  description?: string
   createdAt: string
 }
 

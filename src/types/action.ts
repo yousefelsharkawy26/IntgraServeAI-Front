@@ -1,5 +1,8 @@
-export type ActionType = 'api_request' | 'rpc_request' | 'internal' | "vector_query"
+export type ActionType = 'api_request' | 'rpc_request' | 'internal' | 'vector_query'
+
 export type ActionStatus = 'active' | 'inactive'
+
+// ── Form-friendly types (camelCase, used in form state) ──────────────────────
 
 export interface ActionHeaders {
   key: string
@@ -12,7 +15,7 @@ export interface ActionParameter {
   required: boolean
 }
 
-export interface ResponseConfig {
+export interface FormResponseConfig {
   path?: string
   mapping?: Record<string, string>
 }
@@ -24,7 +27,7 @@ export interface APIRequestConfig {
   headers: ActionHeaders[]
   parameters: ActionParameter[]
   timeout: number
-  responseConfig: ResponseConfig
+  responseConfig: FormResponseConfig
 }
 
 export interface RPCRequestConfig {
@@ -33,6 +36,14 @@ export interface RPCRequestConfig {
   method: string
   protoFile: string
   timeout: number
+}
+
+export interface VectorQueryConfig {
+  indexName: string
+  embeddingModel: string
+  topK: number
+  threshold: number
+  filter?: Record<string, string>
 }
 
 export interface Action {
@@ -44,9 +55,8 @@ export interface Action {
   requiresConfirmation: boolean
   apiConfig?: APIRequestConfig
   rpcConfig?: RPCRequestConfig
-  internalConfig?: {
-    handler: string
-  }
+  internalConfig?: { handler: string }
+  vectorConfig?: VectorQueryConfig
   createdAt: string
   updatedAt: string
 }
@@ -57,12 +67,59 @@ export interface ActionFilters {
   search?: string
 }
 
+// ── Backend-aligned types (snake_case, the API contract) ─────────────────────
+
+/**
+ * Backend's `execution_config` — a single flat object whose populated fields
+ * depend on `type`. See backend OpenAPI schema for which fields apply to which
+ * type. We only populate the relevant subset per submit.
+ */
+export interface ExecutionConfig {
+  // api_request
+  protocol?: 'http' | 'https'
+  method?: string
+  url?: string
+  headers?: Record<string, string>
+  timeout?: number
+  // rpc_request
+  host?: string
+  service?: string
+  proto_file?: string
+  // internal
+  connector?: string
+  connection_string?: string
+  // vector_query
+  collection_name?: string
+  max_results?: number
+  embedding_config?: Record<string, unknown>
+  // common
+  auth?: Record<string, string>
+}
+
+export interface ParameterDetail {
+  type: string
+  required: boolean
+  param_type: string
+  description?: string
+  default?: string
+  enum?: (string | number)[]
+}
+
+export interface BackendResponseConfig {
+  mode?: 'json' | 'raw' | 'template'
+  values?: Record<string, { type: string; path: string }>
+  template?: string
+  on_error?: string
+}
+
+/** Payload sent to POST /actions and PUT /actions/:id */
 export interface CreateActionData {
   name: string
   description: string
   type: ActionType
-  requiresConfirmation: boolean
-  apiConfig?: APIRequestConfig
-  rpcConfig?: RPCRequestConfig
-  internalConfig?: { handler: string }
+  active: boolean
+  requires_confirmation: boolean
+  execution_config: ExecutionConfig
+  parameters?: Record<string, ParameterDetail>
+  response_config?: BackendResponseConfig
 }

@@ -15,7 +15,7 @@ const BackupsView = lazy(() => import('@/features/backups/components/BackupsView
 const UsersList = lazy(() => import('@/features/users/components/UsersList'))
 const RolesGrid = lazy(() => import('@/features/roles/components/RolesGrid'))
 const ProfileView = lazy(() => import('@/features/profile/components/ProfileView'))
-const ChatWidgetPage = lazy(() => import('@/features/chat/components/ChatWidgetPage'))
+const ChatPage = lazy(() => import('@/features/chat/components/ChatPage'))
 
 function PageLoader() {
   return (
@@ -108,7 +108,7 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path="/chat" element={<ChatWidgetPage />} />
+          <Route path="/chat" element={<ChatPage />} />
         </Route>
 
         {/* Redirect root */}

@@ -2,9 +2,29 @@ import api from './api'
 import { API_ENDPOINTS } from '@/constants/api'
 import type { Backup, BackupListResponse } from '@/types/backup'
 
+export type GetBackupsParams = {
+  page?: number
+  limit?: number
+  search?: string
+}
+
 export const backupService = {
-  async getBackups(): Promise<BackupListResponse> {
-    const { data } = await api.get<any>(API_ENDPOINTS.backups.list)
+  async getBackups(
+    params: GetBackupsParams = {},
+  ): Promise<BackupListResponse> {
+    // strip undefined / empty params so the URL stays clean
+    const queryParams = Object.fromEntries(
+      Object.entries({
+        page: params.page,
+        limit: params.limit,
+        search: params.search,
+      }).filter(([_, v]) => v !== undefined && v !== ''),
+    )
+
+    const { data } = await api.get<any>(API_ENDPOINTS.backups.list, {
+      params: queryParams,
+    })
+
     const backups = (data.backups || []).map((b: any) => ({
       id: b.filename,
       name: b.filename,
@@ -16,9 +36,12 @@ export const backupService = {
       createdAt: b.created_at,
       completedAt: b.created_at,
     }))
+
     return {
       backups,
-      total: data.total || backups.length,
+      // backend is the source of truth for total; fall back to local count
+      // if it didn't include one (e.g. un-paginated endpoint during dev)
+      total: data.total ?? backups.length,
     }
   },
 
@@ -42,15 +65,14 @@ export const backupService = {
       size: 0,
       createdAt: new Date().toISOString(),
       metrics: [
-        { key: 'backupActions', label: 'Actions in Backup', current: data.current_actions_count, backup: data.backup_actions_count },
-        { key: 'totalActions', label: 'Current Actions', current: data.current_actions_count, backup: data.backup_actions_count }
+        { key: 'backupActions', label: 'Actions in Backup',  current: data.current_actions_count, backup: data.backup_actions_count },
+        { key: 'totalActions',  label: 'Current Actions',     current: data.current_actions_count, backup: data.backup_actions_count },
       ],
       changes: [
-        ...(data.added || []).map((name: string) => ({ type: 'added' as const, path: name, newValue: 'New action added' })),
-        ...(data.removed || []).map((name: string) => ({ type: 'removed' as const, path: name, oldValue: 'Action removed' })),
-        ...(data.modified || []).map((name: string) => ({ type: 'modified' as const, path: name, newValue: 'Action configuration modified' }))
-      ]
+        ...(data.added    || []).map((name: string) => ({ type: 'added'    as const, path: name, newValue: 'New action added' })),
+        ...(data.removed  || []).map((name: string) => ({ type: 'removed'  as const, path: name, oldValue: 'Action removed' })),
+        ...(data.modified || []).map((name: string) => ({ type: 'modified' as const, path: name, newValue: 'Action configuration modified' })),
+      ],
     }
   },
 }
-

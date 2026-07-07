@@ -1,0 +1,50 @@
+/* ============================================================
+   Profile page enhancements — drop into globals.css (or import)
+   ============================================================ */
+
+/* ─── Smoother button press feedback ──────────────────────── */
+.btn-press {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-press:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* ─── Card hover lift (optional polish) ───────────────────── */
+.card-hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  border-color: var(--color-border-medium);
+  box-shadow: 0 4px 16px -8px rgba(15, 23, 42, 0.08);
+}
+.dark .card-hover:hover {
+  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Better focus ring (accessibility) ───────────────────── */
+:where(button, a, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-accent-blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ─── Subtle scroll-margin for in-page anchors ────────────── */
+section[id],
+div[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* ─── Gradient text helper ─────────────────────────────────── */
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── RTL support — flip directional icons automatically ───── */
+[dir="rtl"] .rtl\:rotate-180,
+html[dir="rtl"] .rtl\:rotate-180 {
+  transform: rotate(180deg);
+}
