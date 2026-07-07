@@ -1,4 +1,21 @@
 import type { Ticket, TicketMessage, Attachment } from '@/types/ticket'
+import { SERVER_URL } from '@/constants/api'
+
+/**
+ * Resolve an attachment file_path to an absolute URL.
+ * - If the backend already returns an absolute URL (http/https), use it as-is.
+ * - If the backend returns a relative path (e.g. "/uploads/foo.png"), prepend
+ *   the configured SERVER_URL. This works for any environment (localhost,
+ *   staging, production) without code changes.
+ */
+function resolveAssetUrl(filePath: string | undefined | null): string {
+  if (!filePath) return ''
+  if (/^https?:\/\//i.test(filePath)) return filePath
+  // Normalize: avoid double slashes
+  const base = SERVER_URL.replace(/\/+$/, '')
+  const path = filePath.replace(/^\/+/, '')
+  return `${base}/${path}`
+}
 
 export const mapBackendTicketToFrontend = (b: any): Ticket => {
   if (!b) return {} as Ticket
@@ -57,7 +74,7 @@ export const mapBackendAttachmentToFrontend = (a: any, index: number = 0): Attac
   return {
     id: a.id || String(index),
     name: a.filename || 'Attachment',
-    url: a.file_path ? `http://localhost:8000/${a.file_path}` : '', // maps to FastAPI static mount path
+    url: resolveAssetUrl(a.file_path),
     size: a.file_size || 0,
     mimeType: a.content_type || 'application/octet-stream',
   }

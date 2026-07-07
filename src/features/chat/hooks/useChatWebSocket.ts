@@ -1,6 +1,13 @@
 // ============================================================
 // Enhanced Chat WebSocket Hook
-// Preserves all original business logic with improved state management
+// Preserves all original business logic with improved state management.
+//
+// Key performance improvement: streaming tokens are buffered and
+// flushed to React state at most once per animation frame, instead
+// of triggering a setMessages(...) call on every single token.
+// For a 2000-token response this collapses ~2000 renders down to
+// ~120 (one per frame at 60fps), and avoids the O(n²) cost of
+// array.map() + string concatenation per token.
 // ============================================================
 
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -64,9 +71,54 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   const conversationIdRef = useRef<string | null>(null)
   const aiMsgIdRef = useRef<string | null>(null)
   const aiBufferRef = useRef('')
+  // rAF-batching refs — accumulate tokens between frames, flush once per frame.
+  const rafPendingRef = useRef(false)
+  const pendingTokensRef = useRef<string>('')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
   const currentToolCallRef = useRef<ToolCallInfo | null>(null)
+
+  // -------------------------------------------------------
+  // rAF-batched flush of streaming tokens to React state.
+  // Multiple tokens arriving in the same frame are coalesced into
+  // a single setMessages call and a single string concatenation.
+  // -------------------------------------------------------
+  const flushStreamingTokens = useCallback(() => {
+    rafPendingRef.current = false
+    const chunk = pendingTokensRef.current
+    pendingTokensRef.current = ''
+    if (!chunk || !aiMsgIdRef.current) return
+
+    // Accumulate into the persistent buffer (still O(n) total length,
+    // but we only do it once per frame instead of once per token).
+    aiBufferRef.current += chunk
+
+    // Structural update: only the streaming message changes — everything
+    // else in the array is referentially unchanged, so memoized children
+    // (MessageRenderer / AIMessage / ChatMarkdown) skip re-rendering.
+    setMessages((prev) => {
+      const next = prev.slice()
+      const idx = next.findIndex((m) => m.id === aiMsgIdRef.current)
+      if (idx === -1) return prev
+      const cur = next[idx]
+      // Only allocate a new object for the streaming message.
+      next[idx] = { ...cur, content: aiBufferRef.current, isStreaming: true }
+      return next
+    })
+  }, [])
+
+  const scheduleFlush = useCallback(() => {
+    if (rafPendingRef.current) return
+    rafPendingRef.current = true
+    // requestAnimationFrame fires ~16ms (60fps); if the browser is
+    // backgrounded, rAF is throttled which naturally reduces work.
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(flushStreamingTokens)
+    } else {
+      // SSR/old-browser fallback: flush on a short timer.
+      setTimeout(flushStreamingTokens, 16)
+    }
+  }, [flushStreamingTokens])
 
   // ---- Connection ----
 
@@ -99,11 +151,14 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         case 'token': {
-          // Streaming token - create new AI message if first token
+          // First token creates the AI message immediately (so the user sees
+          // the bubble appear with the cursor), then subsequent tokens are
+          // rAF-batched.
           if (!aiMsgIdRef.current) {
             const id = `ai-${generateId()}`
             aiMsgIdRef.current = id
             aiBufferRef.current = ''
+            pendingTokensRef.current = ''
             setMessages((prev) => [...prev, {
               id,
               content: '',
@@ -112,13 +167,8 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
               isStreaming: true,
             }])
           }
-          // Accumulate and update
-          aiBufferRef.current += data.content
-          setMessages((prev) => prev.map((m) =>
-            m.id === aiMsgIdRef.current
-              ? { ...m, content: aiBufferRef.current, isStreaming: true }
-              : m
-          ))
+          pendingTokensRef.current += data.content
+          scheduleFlush()
           break
         }
 
@@ -167,8 +217,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         case 'pause': {
+          // Force-flush any pending tokens before finalizing the streaming state.
+          if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
-          // Mark current AI message as done streaming
           if (aiMsgIdRef.current) {
             setMessages((prev) =>
               prev.map((m) =>
@@ -185,8 +236,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         case 'done': {
+          // Force-flush any pending tokens so the final message shows everything.
+          if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
-          // Finalize streaming message
           if (aiMsgIdRef.current) {
             setMessages((prev) =>
               prev.map((m) =>
@@ -200,13 +252,17 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         case 'error': {
+          if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
           setMessages((prev) => [...prev, {
             id: `err-${generateId()}`,
             content: data.message || 'An error occurred.',
             sender: 'system',
             timestamp: new Date().toISOString(),
-          }])
+            // Mark system error messages so the UI can style them distinctly
+            // instead of fragile string matching.
+            isError: true,
+          } as ChatMessage])
           break
         }
 
@@ -221,6 +277,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         case 'stopped': {
+          if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
           if (aiMsgIdRef.current) {
             setMessages((prev) =>
@@ -246,6 +303,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
     ws.onclose = () => {
       if (!mountedRef.current) return
+      // Flush any in-flight tokens so the user sees the final content
+      // even if the connection drops mid-stream.
+      if (rafPendingRef.current) flushStreamingTokens()
       setConnectionStatus('disconnected')
       setIsTyping(false)
       aiMsgIdRef.current = null
@@ -258,7 +318,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     ws.onerror = () => {
       ws.close()
     }
-  }, [customerEmail, customerName])
+  }, [customerEmail, customerName, scheduleFlush, flushStreamingTokens])
 
   // ---- Disconnect ----
 
@@ -274,6 +334,12 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
       wsRef.current.close()
       wsRef.current = null
     }
+    if (rafPendingRef.current) {
+      rafPendingRef.current = false
+      // Cancel any pending rAF by simply clearing the flag; the next flush
+      // will be a no-op since pendingTokensRef is also cleared below.
+    }
+    pendingTokensRef.current = ''
     setConnectionStatus('disconnected')
     aiMsgIdRef.current = null
     aiBufferRef.current = ''
@@ -315,8 +381,10 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     ws.send(JSON.stringify({ type: 'stop' }))
+    // Flush any pending tokens so the stopped message shows its final state.
+    if (rafPendingRef.current) flushStreamingTokens()
     setIsTyping(false)
-  }, [])
+  }, [flushStreamingTokens])
 
   // ---- Edit Message ----
 
@@ -361,6 +429,8 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     setMessages([])
     aiMsgIdRef.current = null
     aiBufferRef.current = ''
+    pendingTokensRef.current = ''
+    rafPendingRef.current = false
   }, [])
 
   // ---- Lifecycle ----

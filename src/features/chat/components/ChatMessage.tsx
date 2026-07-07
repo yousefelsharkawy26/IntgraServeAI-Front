@@ -4,7 +4,7 @@
 // Premium message design with animations and interactions
 // ============================================================
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   Pencil, Trash2, Check, X, RotateCcw,
@@ -131,13 +131,13 @@ export const UserMessage = React.memo(function UserMessage({
         <ChatAvatar sender="user" size="sm" />
       </div>
 
-      {/* Action bar - appears on hover */}
+      {/* Action bar - appears on hover OR keyboard focus within */}
       {!isEditing && (
         <motion.div
           initial={false}
           animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 4 }}
           transition={{ duration: 0.15 }}
-          className="flex items-center gap-0.5 mr-10"
+          className="flex items-center gap-0.5 mr-10 opacity-0 group-hover/user:opacity-100 group-focus-within/user:opacity-100 motion-reduce:opacity-100"
         >
           <MessageActionButton
             icon={<Pencil className="h-3 w-3" />}
@@ -219,12 +219,12 @@ export const AIMessage = React.memo(function AIMessage({
           </div>
         )}
 
-        {/* Action bar */}
+        {/* Action bar - visible on hover OR keyboard focus within */}
         <motion.div
           initial={false}
           animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 4 }}
           transition={{ duration: 0.15 }}
-          className="flex items-center gap-0.5 pt-1"
+          className="flex items-center gap-0.5 pt-1 opacity-0 group-hover/ai:opacity-100 group-focus-within/ai:opacity-100 motion-reduce:opacity-100"
         >
           <CopyButton text={message.content} />
           <MessageActionButton
@@ -252,7 +252,11 @@ interface SystemMessageProps {
 }
 
 export const SystemMessage = React.memo(function SystemMessage({ message }: SystemMessageProps) {
-  const isError = message.content.toLowerCase().includes('error') ||
+  // Prefer the explicit isError flag from the WS hook. Fall back to content
+  // matching only for legacy / externally-injected system messages.
+  const isError =
+    message.isError === true ||
+    (!message.isError && message.content.toLowerCase().includes('error')) ||
     message.content.toLowerCase().includes('failed')
 
   return (
@@ -352,11 +356,13 @@ const MessageActionButton = React.memo(function MessageActionButton({
 }: MessageActionButtonProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={cn(
         'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium',
         'text-muted-foreground hover:bg-muted hover:text-foreground',
         'transition-colors duration-150',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         variant === 'danger' && 'hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30'
       )}
       title={label}
@@ -370,11 +376,25 @@ const MessageActionButton = React.memo(function MessageActionButton({
 // Copy button with feedback
 const CopyButton = React.memo(function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clear the timeout on unmount so we never call setState on an unmounted
+  // component (which would log a React warning).
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard API can reject in non-secure contexts; fail silently.
+    }
   }, [text])
 
   return (

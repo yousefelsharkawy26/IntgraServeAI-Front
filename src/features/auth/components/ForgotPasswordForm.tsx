@@ -2,12 +2,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import { Box, ArrowLeft, CheckCircle } from 'lucide-react'
+import { Box, ArrowLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Link } from 'react-router-dom'
+import { authService } from '@/services/auth.service'
+import { useNotificationStore } from '@/store/notificationStore'
 
 const forgotSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -18,6 +20,8 @@ type ForgotFormData = z.infer<typeof forgotSchema>
 export default function ForgotPasswordForm() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const { addToast } = useNotificationStore()
 
   const {
     register,
@@ -27,11 +31,27 @@ export default function ForgotPasswordForm() {
     resolver: zodResolver(forgotSchema),
   })
 
-  const onSubmit = async (_data: ForgotFormData) => {
+  const onSubmit = async (data: ForgotFormData) => {
+    setSubmitError(null)
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setIsSubmitted(true)
-    setIsSubmitting(false)
+    try {
+      await authService.forgotPassword({ email: data.email })
+      // For security, always show the success message — even if the email
+      // doesn't exist (avoids account enumeration).
+      setIsSubmitted(true)
+      addToast({
+        type: 'success',
+        title: 'Reset link sent',
+        message: 'Check your inbox for the password reset link.',
+      })
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to send reset link. Please try again.'
+      setSubmitError(message)
+      addToast({ type: 'error', title: 'Request failed', message })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -87,7 +107,7 @@ export default function ForgotPasswordForm() {
                 Enter your email and we'll send you a reset link
               </p>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+              <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-6 space-y-4">
                 <div>
                   <Label htmlFor="email" className="text-sm font-medium text-[var(--color-text-primary)]">
                     Email
@@ -95,19 +115,41 @@ export default function ForgotPasswordForm() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     placeholder="you@company.com"
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
                     className="mt-1.5 h-10 rounded-lg border-[var(--color-border-medium)] bg-[var(--color-bg-base)]"
                     {...register('email')}
                   />
-                  {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
+                  {errors.email && (
+                    <p id="email-error" role="alert" className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
+
+                {submitError && (
+                  <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{submitError}</span>
+                  </div>
+                )}
 
                 <Button
                   type="submit"
                   disabled={isSubmitting}
                   className="h-10 w-full rounded-lg bg-[var(--color-text-primary)] text-white hover:bg-[var(--color-text-primary)]/90"
                 >
-                  {isSubmitting ? 'Sending...' : 'Send reset link'}
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </span>
+                  ) : (
+                    'Send reset link'
+                  )}
                 </Button>
               </form>
             </>

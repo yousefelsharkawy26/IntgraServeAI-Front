@@ -85,23 +85,27 @@ export default function TicketQueue() {
       <RevealCard delay={0}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex rounded-lg border border-[var(--color-border-medium)] bg-[var(--color-bg-surface)] p-0.5">
+            <div className="flex rounded-lg border border-[var(--color-border-medium)] bg-[var(--color-bg-surface)] p-0.5" role="group" aria-label="View mode">
               <button
+                type="button"
                 onClick={() => setView('table')}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                aria-pressed={view === 'table'}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   view === 'table' ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
-                <List className="h-3.5 w-3.5" />
+                <List className="h-3.5 w-3.5" aria-hidden="true" />
                 List
               </button>
               <button
+                type="button"
                 onClick={() => setView('kanban')}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                aria-pressed={view === 'kanban'}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   view === 'kanban' ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
-                <LayoutGrid className="h-3.5 w-3.5" />
+                <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
                 Kanban
               </button>
             </div>
@@ -109,9 +113,11 @@ export default function TicketQueue() {
 
           <div className="flex items-center gap-3">
             <div className="relative flex-1 sm:flex-initial">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden="true" />
               <Input
-                placeholder="Search tickets..."
+                type="search"
+                aria-label="Search tickets"
+                placeholder="Search tickets…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 className="h-9 w-full rounded-full border-[var(--color-border-medium)] bg-[var(--color-bg-surface)] pl-9 text-sm sm:w-64"
@@ -203,8 +209,17 @@ export default function TicketQueue() {
                             initial="hidden"
                             animate="visible"
                             exit="hidden"
-                            className="group cursor-pointer border-b border-[var(--color-border-light)] transition-all duration-200 hover:bg-[var(--color-bg-base)] hover:scale-[1.001]"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Open ticket ${ticket.id}: ${ticket.subject}`}
+                            className="group cursor-pointer border-b border-[var(--color-border-light)] transition-all duration-200 hover:bg-[var(--color-bg-base)] hover:scale-[1.001] focus-visible:outline-none focus-visible:bg-[var(--color-bg-base)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                             onClick={() => navigate(`/tickets/${ticket.id}`)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                navigate(`/tickets/${ticket.id}`)
+                              }
+                            }}
                           >
                             <td className="px-4 py-3.5 font-mono text-xs text-[var(--color-text-muted)]">#{ticket.id}</td>
                             <td className="px-4 py-3.5 max-w-[250px] truncate font-medium text-[var(--color-text-primary)]">{ticket.subject}</td>
@@ -212,7 +227,7 @@ export default function TicketQueue() {
                             <td className="px-4 py-3.5"><PriorityBadge priority={ticket.priority as TicketPriority} /></td>
                             <td className="px-4 py-3.5"><StatusBadge status={ticket.status as TicketStatus} /></td>
                             <td className="px-4 py-3.5 text-right text-xs text-[var(--color-text-muted)]">
-                              {new Date(ticket.updatedAt).toLocaleDateString()}
+                              <time dateTime={ticket.updatedAt}>{new Date(ticket.updatedAt).toLocaleDateString()}</time>
                             </td>
                           </motion.tr>
                         ))}
@@ -260,15 +275,24 @@ export default function TicketQueue() {
                         variants={rowVariants}
                         initial="hidden"
                         animate="visible"
-                        className="cursor-pointer rounded-lg border border-[var(--color-border-light)] bg-[var(--color-bg-base)] p-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open ticket ${ticket.id}: ${ticket.subject}`}
+                        className="cursor-pointer rounded-lg border border-[var(--color-border-light)] bg-[var(--color-bg-base)] p-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                         onClick={() => navigate(`/tickets/${ticket.id}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            navigate(`/tickets/${ticket.id}`)
+                          }
+                        }}
                       >
                         <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{ticket.subject}</p>
                         <p className="mt-1 text-xs text-[var(--color-text-muted)]">{ticket.customerName}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <PriorityBadge priority={ticket.priority as TicketPriority} />
                           <span className="text-[10px] text-[var(--color-text-muted)]">
-                            {new Date(ticket.updatedAt).toLocaleDateString()}
+                            <time dateTime={ticket.updatedAt}>{new Date(ticket.updatedAt).toLocaleDateString()}</time>
                           </span>
                         </div>
                       </motion.div>

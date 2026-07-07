@@ -3,7 +3,7 @@
 // ============================================================
 
 // Components
-export { ChatPage } from './components/ChatPage'
+export { default as ChatPage } from './components/ChatPage'
 export { ChatWidget } from './components/ChatWidget'
 export { ChatLayout } from './components/ChatLayout'
 export { ChatSidebar } from './components/ChatSidebar'

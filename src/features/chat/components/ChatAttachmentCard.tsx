@@ -3,14 +3,15 @@
 // Premium file attachment display with icon, progress, preview
 // ============================================================
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
-  FileText, Image, Table, Code, Archive, X,
+  FileText, Image as ImageIcon, Table, Code, Archive, X,
   Download, Eye, FileSpreadsheet, FileCode, Loader2,
-  CheckCircle2, AlertCircle,
+  CheckCircle2, AlertCircle, Presentation,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useModalA11y } from '@/hooks/useModalA11y'
 import type { ChatAttachment, PendingFile } from '../types'
 import { FILE_TYPE_CONFIG } from '../types'
 import { getAssetUrl } from '../services/chat.service'
@@ -35,20 +36,23 @@ export const ChatAttachmentCard = React.memo(function ChatAttachmentCard({
   const config = getFileConfig(attachment.type)
   const url = getAssetUrl(attachment.url)
 
-  // Image preview
+  // Image preview — render as a real <button> so it's keyboard-accessible.
   if (isImage) {
     return (
-      <motion.div
+      <motion.button
+        type="button"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative group/image cursor-pointer"
+        className="relative group/image cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={() => onPreview?.(url)}
+        aria-label={`Preview image: ${attachment.name}`}
       >
         <img
           src={url}
           alt={attachment.name}
+          loading="lazy"
           className={cn(
             'rounded-lg object-cover border border-border/50 transition-transform',
             variant === 'compact' ? 'max-h-32 w-auto' : 'max-h-48 w-auto'
@@ -56,11 +60,11 @@ export const ChatAttachmentCard = React.memo(function ChatAttachmentCard({
         />
         <div className={cn(
           'absolute inset-0 rounded-lg bg-black/40 flex items-center justify-center transition-opacity',
-          isHovered ? 'opacity-100' : 'opacity-0'
+          isHovered ? 'opacity-100' : 'opacity-0 group-hover/image:opacity-100 group-focus-visible/image:opacity-100'
         )}>
           <Eye className="h-5 w-5 text-white" />
         </div>
-      </motion.div>
+      </motion.button>
     )
   }
 
@@ -224,6 +228,16 @@ export const ImagePreviewModal = React.memo(function ImagePreviewModal({
   imageUrl,
   onClose,
 }: ImagePreviewModalProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isOpen = !!imageUrl
+
+  useModalA11y({
+    open: isOpen,
+    onClose,
+    containerRef,
+    labelId: 'image-preview-title',
+  })
+
   if (!imageUrl) return null
 
   return (
@@ -236,23 +250,30 @@ export const ImagePreviewModal = React.memo(function ImagePreviewModal({
       onClick={onClose}
     >
       <motion.div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="image-preview-title"
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.85, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        className="relative max-h-[90vh] max-w-[90vw]"
+        className="relative max-h-[90vh] max-w-[90vw] focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
+        <h2 id="image-preview-title" className="sr-only">Image preview</h2>
         <img
           src={imageUrl}
-          alt="Preview"
+          alt="Image preview"
           className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain shadow-2xl"
         />
         <button
+          type="button"
           onClick={onClose}
-          className="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full
+          className="absolute -top-3 -right-3 flex h-9 w-9 items-center justify-center rounded-full
             bg-background border border-border shadow-lg text-foreground
-            hover:bg-muted transition-colors"
+            hover:bg-muted transition-colors
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Close preview"
         >
           <X className="h-4 w-4" />
@@ -286,7 +307,15 @@ function getFileConfig(type: string): { icon: typeof FileText; color: string; la
 
 function getIconComponent(iconName: string): typeof FileText {
   const iconMap: Record<string, typeof FileText> = {
-    FileText, Image, Table, Code, Archive, FileSpreadsheet, FileCode,
+    FileText,
+    Image: ImageIcon,
+    Table,
+    Code,
+    Archive,
+    FileSpreadsheet,
+    FileCode,
+    // Previously missing — PowerPoint files fell back to FileText silently.
+    Presentation,
   }
   return iconMap[iconName] || FileText
 }

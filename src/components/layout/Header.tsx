@@ -48,7 +48,9 @@ export function Header() {
           {searchOpen ? (
             <Input
               autoFocus
-              placeholder="Search..."
+              type="search"
+              aria-label="Search"
+              placeholder="Search…"
               className="h-9 w-64 rounded-full border-[var(--color-border-medium)] bg-[var(--color-bg-base)] pr-9 text-sm"
               onBlur={() => setSearchOpen(false)}
             />
@@ -58,8 +60,9 @@ export function Header() {
               size="icon"
               className="h-9 w-9 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-bg-base)]"
               onClick={() => setSearchOpen(true)}
+              aria-label="Open search"
             >
-              <Search className="h-[18px] w-[18px]" />
+              <Search className="h-[18px] w-[18px]" aria-hidden="true" />
             </Button>
           )}
         </div>
@@ -69,8 +72,9 @@ export function Header() {
           size="icon"
           className="h-9 w-9 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-bg-base)]"
           onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         >
-          {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+          {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" aria-hidden="true" /> : <Moon className="h-[18px] w-[18px]" aria-hidden="true" />}
         </Button>
 
         <Button
@@ -78,16 +82,24 @@ export function Header() {
           size="icon"
           className="relative h-9 w-9 rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-bg-base)]"
           onClick={togglePanel}
+          aria-label={`${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`}
         >
-          <Bell className="h-[18px] w-[18px]" />
+          <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
           {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-accent-orange)] text-[11px] font-semibold text-white">
+            <span
+              aria-hidden="true"
+              className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-accent-orange)] text-[11px] font-semibold text-white"
+            >
               {unreadCount}
             </span>
           )}
         </Button>
 
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-sm font-semibold text-white">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-sm font-semibold text-white"
+          aria-label={`Account: ${user?.name || 'User'}`}
+          title={user?.name || 'User'}
+        >
           {user?.name?.charAt(0).toUpperCase() || 'U'}
         </div>
 

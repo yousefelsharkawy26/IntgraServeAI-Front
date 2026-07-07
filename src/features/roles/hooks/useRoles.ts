@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { roleService } from '@/services/role.service'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 
@@ -24,42 +24,9 @@ export function useRoleMembers(roleId: string | null) {
   })
 }
 
-export function useCreateRole() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: roleService.createRole,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.roles })
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.myRoles })
-    },
-  })
-}
-
-export function useUpdateRole() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      id,
-      payload,
-    }: {
-      id: string
-      payload: Parameters<typeof roleService.updateRole>[1]
-    }) => roleService.updateRole(id, payload),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.roles })
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.myRoles })
-      qc.invalidateQueries({ queryKey: ['roles', vars.id, 'members'] })
-    },
-  })
-}
-
-export function useDeleteRole() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => roleService.deleteRole(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.roles })
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.myRoles })
-    },
-  })
-}
+// NOTE: useCreateRole / useUpdateRole / useDeleteRole were previously defined
+// here but referenced `roleService.createRole / updateRole / deleteRole`,
+// which do not exist on the service. They were also never imported anywhere.
+// They have been removed to fix the build. When role CRUD is needed, add the
+// corresponding methods to `role.service.ts` first, then re-introduce the
+// hooks here.

@@ -7,7 +7,7 @@ import React, { useRef, useCallback, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Paperclip, Mic, Sparkles,
-  Command, CornerDownLeft, StopCircle,
+  CornerDownLeft, StopCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PendingFile } from '../types'
@@ -209,9 +209,11 @@ export const ChatComposer = React.memo(function ChatComposer({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             onPaste={handlePaste}
-            placeholder={isConnected ? 'Message IntegraServe AI...' : 'Connecting...'}
+            placeholder={isConnected ? 'Message IntegraServe AI…' : 'Connecting…'}
             disabled={!isConnected || disabled}
             rows={1}
+            aria-label="Message input"
+            aria-describedby="composer-hint"
             className={cn(
               'flex-1 resize-none bg-transparent py-2 text-[15px] leading-relaxed',
               'placeholder:text-muted-foreground/60',
@@ -258,15 +260,21 @@ export const ChatComposer = React.memo(function ChatComposer({
 
         {/* Bottom hint bar */}
         <div className="flex items-center justify-between px-3 pb-2 pt-0">
-          <div className="flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-muted-foreground/40" />
-            <span className="text-[10px] text-muted-foreground/40">
-              {isConnected ? 'AI may produce inaccurate information' : 'Connecting to server...'}
+          <div id="composer-hint" className="flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
+            <span className="text-[11px] text-muted-foreground/70">
+              {isConnected ? 'AI may produce inaccurate information' : 'Connecting to server…'}
             </span>
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/30">
-            <Command className="h-2.5 w-2.5" />
-            <span>+ Enter to send</span>
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60">
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
+              Enter
+            </kbd>
+            <span>to send</span>
+            <kbd className="ml-2 rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
+              Shift+Enter
+            </kbd>
+            <span>for newline</span>
           </div>
         </div>
       </motion.div>

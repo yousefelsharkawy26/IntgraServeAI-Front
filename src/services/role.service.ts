@@ -214,6 +214,20 @@ export type CreateRolePayload = {
 export type UpdateRolePayload = Partial<CreateRolePayload>
 
 export const roleService = {
+  async createRole(payload: CreateRolePayload): Promise<Role> {
+    const { data } = await api.post<Role>(API_ENDPOINTS.roles.list, payload)
+    return toFrontendRole(data, 0, data?.name)
+  },
+
+  async updateRole(id: string, payload: UpdateRolePayload): Promise<Role> {
+    const { data } = await api.put<Role>(API_ENDPOINTS.roles.detail(id), payload)
+    return toFrontendRole(data, 0, data?.name)
+  },
+
+  async deleteRole(id: string): Promise<void> {
+    await api.delete(API_ENDPOINTS.roles.detail(id))
+  },
+
   async getMyRoles(): Promise<Role[]> {
     const { data } = await api.get<any>(API_ENDPOINTS.roles.me)
     return unwrapRoles(data).map((r: any) => toFrontendRole(r, 0, r.name))

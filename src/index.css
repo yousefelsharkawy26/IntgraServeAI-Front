@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,14 +6,9 @@
 
 @layer base {
   :root {
-    
     --radius: 0.625rem;
 
-    
-
-    
-
-    /*Chat theme variables*/
+    /* Chat theme variables (shadcn/ui standard tokens) */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -33,7 +28,6 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
-    --radius: 0.625rem;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -42,21 +36,35 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* ============================================================
+       Legacy --color-* tokens (used by 38+ feature files).
+       Mapped to the corresponding hsl(var(--*)) triples so the
+       existing class names like bg-[var(--color-bg-surface)]
+       continue to work. These are aliases, not new tokens.
+       ============================================================ */
+    --color-bg-base: hsl(var(--muted));
+    --color-bg-surface: hsl(var(--card));
+    --color-bg-surface-2: hsl(var(--secondary));
+    --color-bg-overlay: hsl(240 10% 3.9% / 0.55);
+    --color-bg-grid: hsl(var(--border));
+    --color-bg-active-nav: hsl(24.6 95% 53% / 0.15);
+    --color-bg-danger-hover: hsl(0 84.2% 60.2% / 0.15);
+    --color-text-primary: hsl(var(--foreground));
+    --color-text-secondary: hsl(var(--muted-foreground));
+    --color-text-muted: hsl(var(--muted-foreground) / 0.7);
+    --color-border-light: hsl(var(--border));
+    --color-border-medium: hsl(240 5.9% 80%);
+    --color-accent-orange: hsl(24.6 95% 53%);
+    --color-accent-blue: hsl(217.2 91.2% 59.8%);
+    --color-accent-green: hsl(142.1 76.2% 36.3%);
+    --color-accent-red: hsl(0 84.2% 60.2%);
+    --color-accent-amber: hsl(37.7 92.1% 50.2%);
   }
 
   .dark {
-    
-
-    --color-bg-active-nav: rgba(249, 115, 22, 0.15);    /* orange active highlight */
-    --color-bg-danger-hover: rgba(239, 68, 68, 0.15);  /* red active highlight */
-
-    /* Dark mode overrides */
-    
-
-    
-
-    /*Chat theme variables*/
-    --background: 60, 2.13%, 9.22%;
+    /* Dark mode chat theme variables */
+    --background: 60 2.13% 9.22%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
@@ -75,7 +83,7 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
-    --sidebar-background: 0, 0%, 7.06%;
+    --sidebar-background: 0 0% 7.06%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -83,6 +91,25 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Legacy --color-* aliases for dark mode */
+    --color-bg-active-nav: hsl(24.6 95% 53% / 0.15);
+    --color-bg-danger-hover: hsl(0 62.8% 40% / 0.18);
+    --color-bg-base: hsl(60 2.13% 9.22%);
+    --color-bg-surface: hsl(240 10% 3.9%);
+    --color-bg-surface-2: hsl(240 3.7% 15.9%);
+    --color-bg-overlay: hsl(0 0% 0% / 0.7);
+    --color-bg-grid: hsl(240 3.7% 15.9%);
+    --color-text-primary: hsl(0 0% 98%);
+    --color-text-secondary: hsl(240 5% 64.9%);
+    --color-text-muted: hsl(240 5% 64.9% / 0.7);
+    --color-border-light: hsl(240 3.7% 15.9%);
+    --color-border-medium: hsl(240 3.7% 25%);
+    --color-accent-orange: hsl(24.6 95% 53%);
+    --color-accent-blue: hsl(217.2 91.2% 59.8%);
+    --color-accent-green: hsl(142.1 70.6% 45.3%);
+    --color-accent-red: hsl(0 84.2% 60.2%);
+    --color-accent-amber: hsl(37.7 92.1% 55%);
   }
 
   * {
@@ -91,7 +118,10 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .font-serif {
@@ -99,7 +129,12 @@
   }
 
   .font-mono {
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  }
+
+  /* Accessible focus ring for keyboard users */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
@@ -111,8 +146,19 @@
     overflow: hidden;
   }
 
+  .line-clamp-3 {
+    display: -webkit-box;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   .text-balance {
     text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
   }
 
   .bg-grain {
@@ -123,6 +169,26 @@
 
   .dark .bg-grain {
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  }
+
+  /* Gradient text utility for premium headings */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--foreground)), hsl(240 5% 40%));
+  }
+
+  /* Subtle elevated surface for premium cards */
+  .surface-elevated {
+    @apply bg-card shadow-sm border border-border;
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.04),
+      0 1px 3px 0 rgb(0 0 0 / 0.06);
+  }
+
+  .dark .surface-elevated {
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.2),
+      0 1px 3px 0 rgb(0 0 0 / 0.3);
   }
 }
 
@@ -168,13 +234,14 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -182,12 +249,18 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-medium);
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
 }
 
 /* Custom animations */
@@ -206,7 +279,7 @@ input[type="range"] {
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: var(--color-border-medium);
+  background: hsl(var(--muted-foreground) / 0.3);
   outline: none;
 }
 
@@ -216,7 +289,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--color-accent-blue);
+  background: hsl(217.2 91.2% 59.8%);
   cursor: pointer;
   border: 2px solid white;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
@@ -260,4 +333,21 @@ input[type="color"]::-webkit-color-swatch {
 .dark .hover\:bg-\[var\(--color-text-primary\)\]\/90:hover svg,
 .dark .data-\[state\=active\]\:bg-\[var\(--color-text-primary\)\][data-state=active] svg {
   stroke: #0F172A !important;
+}
+
+/* Selection color */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }

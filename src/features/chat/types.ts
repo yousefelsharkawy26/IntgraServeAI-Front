@@ -25,6 +25,8 @@ export interface ChatMessage {
   toolCalls?: ToolCallInfo[]
   /** Reasoning/thinking content (collapsible) */
   reasoning?: string
+  /** Explicit error flag — replaces fragile content.toLowerCase().includes('error') checks */
+  isError?: boolean
 }
 
 export interface ToolCallInfo {

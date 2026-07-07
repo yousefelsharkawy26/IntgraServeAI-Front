@@ -43,12 +43,15 @@ export const authService = {
   },
 
   async resetPassword(data: ResetPasswordData): Promise<{ message: string }> {
+    // Send token in the request body (NOT as a URL query parameter, which would
+    // be logged by proxies and persist in browser history).
     const { data: response } = await api.post<{ message: string }>(
-      `${API_ENDPOINTS.auth.resetPassword}?token=${encodeURIComponent(data.token)}`,
-      { new_password: data.password }
+      API_ENDPOINTS.auth.resetPassword,
+      {
+        token: data.token,
+        new_password: data.password,
+      }
     )
-
-    console.log(data)
 
     return response
   },

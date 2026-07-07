@@ -1,3 +1,4 @@
+import React from 'react'
 import { CheckCircle2, XCircle, Pencil, FileText, Power, PowerOff } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,7 +21,7 @@ interface Props {
   isTogglingStatus: boolean
 }
 
-export function UsersTable({
+export const UsersTable = React.memo(function UsersTable({
   users,
   selectedIds,
   onToggleSelect,
@@ -40,15 +41,19 @@ export function UsersTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border-light)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider w-10">
-                  <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
+                <th scope="col" className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={onToggleSelectAll}
+                    aria-label="Select all users"
+                  />
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">User</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Role</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Department</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Joined</th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Actions</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">User</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Role</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Department</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Joined</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium text-[var(--color-text-muted)] text-xs uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border-light)]">
@@ -71,7 +76,7 @@ export function UsersTable({
       </CardContent>
     </Card>
   )
-}
+})
 
 interface RowProps {
   user: User
@@ -84,24 +89,59 @@ interface RowProps {
   isTogglingStatus: boolean
 }
 
-function UserRow({ user, selected, onToggleSelect, onEdit, onViewLogs, onRowClick, onToggleStatus, isTogglingStatus }: RowProps) {
+const UserRow = React.memo(function UserRow({
+  user,
+  selected,
+  onToggleSelect,
+  onEdit,
+  onViewLogs,
+  onRowClick,
+  onToggleStatus,
+  isTogglingStatus,
+}: RowProps) {
   const isActive = user.status === 'active'
+
+  // Keyboard support: clicking the row opens the details drawer, so the
+  // row must also be reachable via keyboard (Tab) and activated via
+  // Enter/Space. We add role="button" + tabIndex={0} + onKeyDown.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+    // Enter or Space (Space without scrolling) triggers the row action.
+    if (e.key === 'Enter' || (e.key === ' ' && !e.shiftKey)) {
+      // Avoid hijacking Space on a checkbox/button inside the row — those
+      // have their own handlers and would have stopped propagation already.
+      const target = e.target as HTMLElement
+      if (target.closest('button, [role="checkbox"], input')) return
+      e.preventDefault()
+      onRowClick(user)
+    }
+  }
 
   return (
     <tr
-      className="group transition-colors hover:bg-[var(--color-bg-base)] cursor-pointer"
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${user.name}`}
+      className="group transition-colors hover:bg-[var(--color-bg-base)] focus-visible:outline-none focus-visible:bg-[var(--color-bg-base)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring cursor-pointer"
       onClick={(e) => {
         const target = e.target as HTMLElement
         if (target.closest('button, [role="checkbox"], input')) return
         onRowClick(user)
       }}
+      onKeyDown={handleKeyDown}
     >
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <Checkbox checked={selected} onCheckedChange={() => onToggleSelect(user.id)} />
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onToggleSelect(user.id)}
+          aria-label={`Select ${user.name}`}
+        />
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-xs font-semibold text-white">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-xs font-semibold text-white"
+            aria-hidden="true"
+          >
             {getUserInitials(user)}
           </div>
           <div>
@@ -118,38 +158,54 @@ function UserRow({ user, selected, onToggleSelect, onEdit, onViewLogs, onRowClic
       <td className="px-4 py-3 text-[var(--color-text-secondary)]">{user.department}</td>
       <td className="px-4 py-3">
         {isActive ? (
-          <span className="flex items-center gap-1 text-xs text-green-600">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Active
+          <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Active
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-xs text-gray-500">
-            <XCircle className="h-3.5 w-3.5" /> Inactive
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <XCircle className="h-3.5 w-3.5" aria-hidden="true" /> Inactive
           </span>
         )}
       </td>
       <td className="px-4 py-3 text-right text-xs text-[var(--color-text-muted)]">
-        {new Date(user.createdAt).toLocaleDateString()}
+        <time dateTime={user.createdAt}>{new Date(user.createdAt).toLocaleDateString()}</time>
       </td>
       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(user)} title="Edit user">
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onViewLogs(user)} title="View activity logs">
-            <FileText className="h-3.5 w-3.5" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onEdit(user)}
+            aria-label={`Edit ${user.name}`}
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className={`h-7 w-7 p-0 ${isActive ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}
+            className="h-7 w-7 p-0 focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onViewLogs(user)}
+            aria-label={`View activity logs for ${user.name}`}
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-7 w-7 p-0 focus-visible:ring-2 focus-visible:ring-ring ${
+              isActive
+                ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 dark:text-red-400'
+                : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 dark:text-emerald-400'
+            }`}
             onClick={() => onToggleStatus(user)}
             disabled={isTogglingStatus}
-            title={isActive ? 'Deactivate user' : 'Activate user'}
+            aria-label={isActive ? `Deactivate ${user.name}` : `Activate ${user.name}`}
           >
-            {isActive ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+            {isActive ? <PowerOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Power className="h-3.5 w-3.5" aria-hidden="true" />}
           </Button>
         </div>
       </td>
     </tr>
   )
-}
+})

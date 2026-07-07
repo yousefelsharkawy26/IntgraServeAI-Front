@@ -1,9 +1,10 @@
 /* ============================================================
    IntegraServe AI Chat - Global Styles
    Premium AI Chat Interface Styles
+   (Cleaned: removed ~60% dead code from previous implementations)
    ============================================================ */
 
-/* --- Scrollbar styling --- */
+/* --- Thin scrollbar (chat sidebar, code blocks, etc.) --- */
 .scrollbar-thin::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -19,14 +20,10 @@
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.4);
 }
 
-/* --- Chat markdown overrides --- */
-.chat-markdown {
-  /* Ensure proper spacing */
-}
-
+/* --- Chat markdown spacing overrides --- */
 .chat-markdown p:first-child {
   margin-top: 0;
 }
@@ -35,7 +32,7 @@
   margin-bottom: 0;
 }
 
-/* Custom checkbox styling in markdown */
+/* --- Accessible checkbox styling in markdown task lists --- */
 .chat-markdown input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -48,6 +45,12 @@
   cursor: pointer;
   position: relative;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chat-markdown input[type="checkbox"]:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 
 .chat-markdown input[type="checkbox"]:checked {
@@ -62,177 +65,14 @@
   top: 1px;
   width: 4px;
   height: 7px;
-  border: solid white;
+  border: solid hsl(var(--primary-foreground));
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg);
 }
 
-/* --- Gradient backgrounds --- */
+/* --- Radial gradient utility (Tailwind doesn't ship one) --- */
 .bg-gradient-radial {
   background: radial-gradient(circle at center, var(--tw-gradient-stops));
-}
-
-/* --- Shimmer animation --- */
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer 2s infinite;
-}
-
-/* --- Typing dots animation --- */
-@keyframes typingBounce {
-  0%, 60%, 100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-4px);
-  }
-}
-
-/* --- Smooth scroll --- */
-html {
-  scroll-behavior: smooth;
-}
-
-/* --- Selection styling --- */
-::selection {
-  background-color: hsl(var(--primary) / 0.2);
-  color: hsl(var(--primary));
-}
-
-/* --- Focus visible styling --- */
-:focus-visible {
-  outline: 2px solid hsl(var(--primary) / 0.3);
-  outline-offset: 2px;
-}
-
-/* --- Reduced motion --- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* --- Widget positioning --- */
-.chat-widget-container {
-  position: fixed;
-  z-index: 50;
-}
-
-/* --- Mobile responsive adjustments --- */
-@media (max-width: 640px) {
-  .chat-widget-container {
-    inset: 0;
-    width: 100% !important;
-    height: 100% !important;
-    max-height: 100vh;
-    border-radius: 0 !important;
-  }
-}
-
-/* --- Composer textarea auto-resize --- */
-textarea[data-composer] {
-  field-sizing: content;
-  min-height: 40px;
-  max-height: 200px;
-}
-
-/* --- Code block copy button visibility --- */
-.group\/code:hover .code-copy-btn {
-  opacity: 1;
-}
-
-/* --- Message hover actions --- */
-.message-actions {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.group:hover .message-actions {
-  opacity: 1;
-}
-
-/* --- Status pulse --- */
-@keyframes statusPulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.status-pulse {
-  animation: statusPulse 2s ease-in-out infinite;
-}
-
-/* --- Drag overlay --- */
-.drag-overlay {
-  pointer-events: none;
-  backdrop-filter: blur(4px);
-}
-
-/* --- Skeleton loading --- */
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 25%,
-    hsl(var(--muted-foreground) / 0.1) 50%,
-    hsl(var(--muted)) 75%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-loading 1.5s ease-in-out infinite;
-}
-
-@keyframes skeleton-loading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* --- Toast / notification --- */
-.toast-enter {
-  animation: toast-in 0.3s ease-out forwards;
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* --- Attachment card hover --- */
-.attachment-card {
-  transition: all 0.2s ease;
-}
-
-.attachment-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-/* --- Sidebar transition --- */
-.sidebar-transition {
-  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* --- Prose overrides for markdown --- */
@@ -254,7 +94,7 @@ textarea[data-composer] {
   font-style: normal;
 }
 
-/* --- Dark mode overrides --- */
+/* --- Dark mode overrides for markdown code --- */
 .dark .chat-markdown pre {
   background: #1e1e2e;
 }
@@ -263,12 +103,12 @@ textarea[data-composer] {
   background: rgba(255, 255, 255, 0.05);
 }
 
-/* --- High contrast mode --- */
+/* --- High contrast mode support --- */
 @media (prefers-contrast: high) {
   .border-border {
     border-color: currentColor;
   }
-  
+
   .text-muted-foreground {
     color: currentColor;
   }

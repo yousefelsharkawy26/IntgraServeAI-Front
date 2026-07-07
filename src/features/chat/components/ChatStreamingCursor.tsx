@@ -13,6 +13,7 @@ interface StreamingCursorProps {
 export const StreamingCursor = React.memo(function StreamingCursor({ className }: StreamingCursorProps) {
   return (
     <motion.span
+      aria-hidden="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: [1, 0, 1] }}
       transition={{
@@ -32,10 +33,15 @@ interface ThinkingDotsProps {
 
 export const ThinkingDots = React.memo(function ThinkingDots({ className }: ThinkingDotsProps) {
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
+    <div
+      role="status"
+      aria-label="AI is thinking"
+      className={`flex items-center gap-1 ${className}`}
+    >
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
+          aria-hidden="true"
           className="h-1.5 w-1.5 rounded-full bg-current opacity-60"
           animate={{
             scale: [1, 1.4, 1],
@@ -49,6 +55,7 @@ export const ThinkingDots = React.memo(function ThinkingDots({ className }: Thin
           }}
         />
       ))}
+      <span className="sr-only">AI is thinking…</span>
     </div>
   )
 })
@@ -64,7 +71,7 @@ export const MessageSkeleton = React.memo(function MessageSkeleton({
   className,
 }: MessageSkeletonProps) {
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div role="status" aria-busy="true" aria-label="Loading messages" className={`space-y-3 ${className}`}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="flex gap-3 animate-pulse">
           <div className="h-8 w-8 rounded-xl bg-muted shrink-0" />
@@ -75,6 +82,7 @@ export const MessageSkeleton = React.memo(function MessageSkeleton({
           </div>
         </div>
       ))}
+      <span className="sr-only">Loading…</span>
     </div>
   )
 })

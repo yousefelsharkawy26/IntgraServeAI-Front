@@ -42,10 +42,13 @@ export const userService = {
   },
 
   async updateMe(data: UpdateProfileData): Promise<User> {
-    const backendData: any = {}
-    if (data.name) backendData.full_name = data.name
-    if (data.email) backendData.email = data.email
-    if (data.avatar) backendData.avatar = data.avatar
+    const backendData: Record<string, unknown> = {}
+    if (data.name !== undefined) backendData.full_name = data.name
+    if (data.email !== undefined) backendData.email = data.email
+    if (data.avatar !== undefined) backendData.avatar = data.avatar
+    // Previously dropped — EditProfileModal sends department but the service
+    // never forwarded it. Always send when present.
+    if (data.department !== undefined) backendData.department = data.department
     const { data: response } = await api.patch<any>(API_ENDPOINTS.users.me, backendData)
     return mapBackendUserToFrontend(response)
   },

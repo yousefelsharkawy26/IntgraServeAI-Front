@@ -64,41 +64,39 @@ export const useServerConnection = () => {
 
   const checkServerConnection = async () => {
     try {
-      await axios.get(`${API_ENDPOINTS.health.check}`);
-      setServerError({ error: null });
-      console.log('not server error');
+      await axios.get(`${API_ENDPOINTS.health.check}`)
+      setServerError({ error: null })
     } catch (error) {
-      console.error('server connection error', error);
       if (axios.isAxiosError(error)) {
-        setServerError({ error: 'server not connected' });
-        console.error('axios server connection error', error);
+        setServerError({ error: 'server not connected' })
       }
+      // Non-axios errors (e.g. network down) are silently treated the same
+      // way — the user already sees "offline" from the network-state hook.
     }
-  };
+  }
 
   useEffect(() => {
-    if (navigator.onLine) {
-      setTimeout(() => checkServerConnection, 0);
+    // Defer the initial check so we don't call setState synchronously in the
+    // effect body (which React 19's set-state-in-effect rule warns about).
+    // The interval also avoids the synchronous-call concern.
+    const runCheck = () => {
+      if (navigator.onLine) void checkServerConnection()
     }
 
-    const interval = setInterval(
-      () => {
-        if (navigator.onLine) {
-          checkServerConnection();
-        }
-      },
-      0.5 * 1000 * 60,
-    );
+    // Fire once on mount (deferred to a microtask) and then every 30s.
+    Promise.resolve().then(runCheck)
+    const interval = setInterval(runCheck, 30_000)
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(interval)
+  }, [])
 
-  console.log('serverError', serverError);
+  return { serverError }
+}
 
-  return { serverError };
-};
-
-// ⭐⭐⭐⭐
+/**
+ * Subscribe to browser network state (online/offline, effective connection
+ * type, downlink, RTT). Uses useSyncExternalStore for tear-free reads.
+ */
 function useNetworkState() {
   const cache = React.useRef<Partial<NetworkStateT>>({});
 

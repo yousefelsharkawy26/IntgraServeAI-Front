@@ -4,46 +4,9 @@
 
 import { API_BASE_URL, API_ENDPOINTS } from '@/constants/api'
 import type { ChatAttachment, Conversation } from '../types'
+import api from '@/services/api'
 
 // -- Mock API client for demo (replace with your actual api instance) --
-const api = {
-  get: async <T>(url: string): Promise<{ data: T }> => {
-    const res = await fetch(`${API_BASE_URL}${url}`)
-    if (!res.ok) throw new Error(`GET ${url} failed`)
-    return { data: await res.json() as T }
-  },
-  post: async <T>(url: string, data?: unknown, config?: Record<string, unknown>): Promise<{ data: T }> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (config?.headers) {
-      const cfgHeaders = config.headers as Record<string, string>
-      Object.assign(headers, cfgHeaders)
-    }
-    const isFormData = data instanceof FormData
-    if (isFormData) delete headers['Content-Type']
-
-    const res = await fetch(`${API_BASE_URL}${url}`, {
-      method: 'POST',
-      headers: isFormData ? undefined : headers,
-      body: isFormData ? data : JSON.stringify(data),
-    })
-    if (!res.ok) throw new Error(`POST ${url} failed`)
-    return { data: await res.json() as T }
-  },
-  put: async <T>(url: string, data?: unknown): Promise<{ data: T }> => {
-    const res = await fetch(`${API_BASE_URL}${url}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) throw new Error(`PUT ${url} failed`)
-    return { data: await res.json() as T }
-  },
-  delete: async <T>(url: string): Promise<{ data: T }> => {
-    const res = await fetch(`${API_BASE_URL}${url}`, { method: 'DELETE' })
-    if (!res.ok) throw new Error(`DELETE ${url} failed`)
-    return { data: await res.json() as T }
-  },
-}
 
 export interface UpdateMessageResponse {
   id: string

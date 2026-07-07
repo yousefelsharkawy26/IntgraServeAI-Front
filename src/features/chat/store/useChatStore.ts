@@ -158,7 +158,7 @@ export const useChatStore = create<ChatUIState>()(
 
       // Conversation
       setActiveConversation: (id) => set({ activeConversationId: id }),
-      setConversations: (conversations) => set({ conversations }),
+      setConversations: (conversations) => set({ conversations: Array.isArray(conversations) ? conversations : [] }),
       addConversation: (conversation) =>
         set((s) => ({ conversations: [conversation, ...s.conversations] })),
       updateConversation: (id, updates) =>

@@ -30,35 +30,33 @@ const DEMO_USER = {
 }
 
 export default function ChatPage() {
-  // ---- Store state ----
-  const {
-    sidebarOpen,
-    toggleSidebar,
-    conversations,
-    activeConversationId,
-    messages: storeMessages,
-    isTyping,
-    pendingAction,
-    inputValue,
-    pendingFiles,
-    previewImage,
-    connectionStatus,
-    config,
-    setActiveConversation,
-    setConversations,
-    addConversation,
-    pinConversation,
-    favoriteConversation,
-    setMessages,
-    setIsTyping,
-    setPendingAction,
-    setInputValue,
-    addPendingFile,
-    removePendingFile,
-    clearPendingFiles,
-    setPreviewImage,
-    setConnectionStatus,
-  } = useChatStore()
+  const sidebarOpen = useChatStore((s) => s.sidebarOpen)
+  const conversations = useChatStore((s) => s.conversations)
+  const activeConversationId = useChatStore((s) => s.activeConversationId)
+  const storeMessages = useChatStore((s) => s.messages)
+  const isTyping = useChatStore((s) => s.isTyping)
+  const pendingAction = useChatStore((s) => s.pendingAction)
+  const inputValue = useChatStore((s) => s.inputValue)
+  const pendingFiles = useChatStore((s) => s.pendingFiles)
+  const previewImage = useChatStore((s) => s.previewImage)
+  const connectionStatus = useChatStore((s) => s.connectionStatus)
+  const config = useChatStore((s) => s.config)
+
+  const toggleSidebar = useChatStore((s) => s.toggleSidebar)
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
+  const setConversations = useChatStore((s) => s.setConversations)
+  const addConversation = useChatStore((s) => s.addConversation)
+  const pinConversation = useChatStore((s) => s.pinConversation)
+  const favoriteConversation = useChatStore((s) => s.favoriteConversation)
+  const setMessages = useChatStore((s) => s.setMessages)
+  const setIsTyping = useChatStore((s) => s.setIsTyping)
+  const setPendingAction = useChatStore((s) => s.setPendingAction)
+  const setInputValue = useChatStore((s) => s.setInputValue)
+  const addPendingFile = useChatStore((s) => s.addPendingFile)
+  const removePendingFile = useChatStore((s) => s.removePendingFile)
+  const clearPendingFiles = useChatStore((s) => s.clearPendingFiles)
+  const setPreviewImage = useChatStore((s) => s.setPreviewImage)
+  const setConnectionStatus = useChatStore((s) => s.setConnectionStatus)
 
   // ---- WebSocket hook ----
   const {
@@ -111,7 +109,7 @@ export default function ChatPage() {
   useEffect(() => {
     import('../services/chat.service').then(({ fetchConversations }) => {
       fetchConversations().then((convs) => {
-        setConversations(convs)
+        setConversations(Array.isArray(convs) ? convs : [])
       }).catch(() => {
         // Demo data will be used
       })
@@ -188,6 +186,7 @@ export default function ChatPage() {
           {!sidebarOpen && (
             <button
               onClick={toggleSidebar}
+              aria-label="Open sidebar"
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               title="Open sidebar"
             >
