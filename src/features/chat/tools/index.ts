@@ -1,8 +1,6 @@
 // ============================================================
 // Human Tool Runtime — Public API
 // ============================================================
-// Single entry point for all tool runtime exports.
-// ============================================================
 
 // ---- Core Types ----
 export type {
@@ -17,6 +15,11 @@ export type {
   ValidationResult,
   ValidationError,
   ToolMetadata,
+  ToolCapability,
+  ToolLifecycleHooks,
+  DiagnosticLevel,
+  DiagnosticEvent,
+  PluginLoader,
 } from './types'
 export { TERMINAL_STATUSES } from './types'
 
@@ -42,21 +45,38 @@ export {
   getAllTools,
   clearRegistry,
   getRegistryStats,
+  // New: Capability querying
+  getRegisteredCapabilities,
+  getToolsByCapability,
+  getCapabilityManifest,
+  // New: Dynamic loading
+  loadPlugin,
+  isPluginLoaded,
+  prefetchTool,
 } from './registry'
 
 // ---- SDK ----
-export { useTool, ToolProvider } from './sdk'
-export type { ToolSDK, ToolTransport } from './sdk'
+export { useTool, ToolProvider, createLifecycleController } from './sdk'
+export type { ToolSDK, ToolTransport, LifecycleController } from './sdk'
 
 // ---- Runtime ----
-export { ToolRenderer } from './runtime'
+export { ToolRenderer, useToolPrefetch } from './runtime'
 
 // ---- Validation ----
 export { validatePayload, validateToolResult } from './validation'
 
 // ---- Plugin API ----
-export { registerPlugin, registerToolPlugin, defineTool } from './plugin'
+export {
+  registerPlugin,
+  registerToolPlugin,
+  defineTool,
+  loadDynamicPlugin,
+  loadRemotePlugin,
+} from './plugin'
 export type { ToolPlugin } from './plugin'
+
+// ---- Diagnostics ----
+export { diagnostics } from './diagnostics'
 
 // ---- Tool Definitions (auto-register on import) ----
 import { createTechnicalTicketDefinition, createSupportTicketDefinition } from './create-ticket/definition'

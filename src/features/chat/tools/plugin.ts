@@ -2,19 +2,19 @@
 // Human Tool Runtime — Plugin Registration API
 // ============================================================
 // High-level API for registering tool plugins.
-// Provides a clean, declarative way to add tools.
+// Supports static and dynamic (lazy/remote) loading.
 //
-// Usage:
-//   registerPlugin({
-//     tools: [createTicketDefinition, selectProductDefinition],
-//   })
+// Static:
+//   registerPlugin({ tools: [definition] })
 //
-// Or for a single tool:
-//   registerToolPlugin(createTicketDefinition)
+// Dynamic:
+//   loadDynamicPlugin(() => import('./my-plugin'))
+//   loadRemotePlugin('https://cdn.example.com/plugins/crm.js')
 // ============================================================
 
-import { registerTool } from './registry'
-import type { HumanToolDefinition } from './types'
+import { registerTool, loadPlugin } from './registry'
+import type { HumanToolDefinition, PluginLoader } from './types'
+import { diagnostics } from './diagnostics'
 
 /**
  * Plugin definition — a collection of tools and optional metadata.
@@ -30,10 +30,12 @@ export interface ToolPlugin {
   setup?: () => void | Promise<void>
   /** Optional teardown function (called during unregistration) */
   teardown?: () => void | Promise<void>
+  /** Plugin dependencies (e.g., ['customer-plugin@>=2.0']) */
+  dependencies?: string[]
 }
 
 /**
- * Register a plugin (one or more tools).
+ * Register a plugin (one or more tools) statically.
  */
 export async function registerPlugin(plugin: ToolPlugin): Promise<void> {
   if (plugin.setup) {
@@ -44,11 +46,13 @@ export async function registerPlugin(plugin: ToolPlugin): Promise<void> {
     registerTool(tool, { isDefault: true })
   }
 
-  if (plugin.name) {
-    console.log(
-      `[ToolPlugin] Registered plugin "${plugin.name}" with ${plugin.tools.length} tool(s)`
-    )
-  }
+  diagnostics.info('plugin', `Plugin registered: ${plugin.name || 'unnamed'}`, {
+    pluginName: plugin.name,
+    pluginVersion: plugin.version,
+    toolsCount: plugin.tools.length,
+    toolTypes: plugin.tools.map((t) => t.type),
+    dependencies: plugin.dependencies,
+  })
 }
 
 /**
@@ -59,9 +63,78 @@ export async function registerToolPlugin(
   options?: { isDefault?: boolean }
 ): Promise<void> {
   registerTool(definition, options)
-  console.log(
-    `[ToolPlugin] Registered tool: ${definition.type}@${definition.version}`
-  )
+}
+
+/**
+ * Load a plugin dynamically from a module import.
+ * The module should export a `default` ToolPlugin or an array of HumanToolDefinition.
+ *
+ * Example:
+ *   await loadDynamicPlugin(() => import('./plugins/crm-plugin'))
+ */
+export async function loadDynamicPlugin(
+  importFn: () => Promise<{
+    default: ToolPlugin | HumanToolDefinition | HumanToolDefinition[]
+  }>,
+  options?: { isDefault?: boolean }
+): Promise<HumanToolDefinition[]> {
+  try {
+    const module = await importFn()
+    const exported = module.default
+
+    if (Array.isArray(exported)) {
+      // Array of definitions
+      for (const def of exported) {
+        registerTool(def, { ...options, silent: true })
+      }
+      diagnostics.info('plugin', `Dynamic plugin loaded (array)`, {
+        toolsCount: exported.length,
+      })
+      return exported
+    }
+
+    if ('tools' in exported && Array.isArray((exported as ToolPlugin).tools)) {
+      // ToolPlugin object
+      const plugin = exported as ToolPlugin
+      await registerPlugin(plugin)
+      return plugin.tools
+    }
+
+    if ('type' in exported && 'version' in exported) {
+      // Single definition
+      const def = exported as HumanToolDefinition
+      registerTool(def, { ...options, silent: true })
+      diagnostics.info('plugin', `Dynamic plugin loaded (single)`, {
+        toolType: def.type,
+      })
+      return [def]
+    }
+
+    throw new Error('Dynamic plugin module must export a ToolPlugin, HumanToolDefinition, or array of definitions')
+  } catch (error) {
+    diagnostics.error('plugin', `Failed to load dynamic plugin`, {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw error
+  }
+}
+
+/**
+ * Load a plugin from a remote URL using a custom PluginLoader.
+ *
+ * Example:
+ *   const loader: PluginLoader = {
+ *     load: async (url) => { ... fetch and parse ... },
+ *     isAvailable: async (url) => { ... check availability ... },
+ *   }
+ *   await loadRemotePlugin('https://cdn.example.com/plugins/crm.js', loader)
+ */
+export async function loadRemotePlugin(
+  url: string,
+  loader: PluginLoader,
+  options?: { isDefault?: boolean }
+): Promise<HumanToolDefinition[]> {
+  return loadPlugin(url, loader, options)
 }
 
 /**

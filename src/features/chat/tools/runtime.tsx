@@ -1,8 +1,8 @@
 // ============================================================
 // Human Tool Runtime — Runtime Renderer
 // ============================================================
-// RESPONSIBILITY: Render tools, handle errors, handle unknown tools.
-// Does NOT manage state, validate, or transport results.
+// RESPONSIBILITY: Render tools, handle errors, handle unknown tools,
+// manage lifecycle controllers, prefetch on approval.
 //
 // Components:
 //   - ToolRenderer: Main entry point
@@ -10,14 +10,22 @@
 //   - UnknownToolHandler: Auto-fails unknown tools
 // ============================================================
 
-import React, { Suspense, useMemo, useCallback, useEffect, Component, useRef } from 'react'
+import React, {
+  Suspense,
+  useMemo,
+  useEffect,
+  Component,
+  useRef,
+  useCallback,
+} from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, Loader2, PackageOpen } from 'lucide-react'
-import { resolveTool } from './registry'
-import { ToolProvider } from './sdk'
-import type { ToolTransport } from './sdk'
-import type { ActiveTool, ToolMetadata, ToolResultStatus, HumanToolDefinition } from './types'
+import { resolveTool, prefetchTool } from './registry'
+import { ToolProvider, createLifecycleController } from './sdk'
+import type { ToolTransport, LifecycleController } from './sdk'
+import type { ActiveTool, ToolMetadata, HumanToolDefinition } from './types'
+import { diagnostics } from './diagnostics'
 
 // -------------------------------------------------------
 // Tool Renderer — Main entry point
@@ -27,11 +35,8 @@ interface ToolRendererProps {
   activeTool: ActiveTool | null
   conversationId: string | null
   transport: ToolTransport
-  /** Optional backend context to pass to tools */
   backendContext?: Record<string, unknown>
-  /** Optional execution ID */
   executionId?: string
-  /** Optional tenant ID */
   tenantId?: string
 }
 
@@ -45,13 +50,16 @@ export function ToolRenderer({
 }: ToolRendererProps) {
   // Resolve the tool definition from the registry
   const definition = activeTool
-    ? resolveTool(activeTool.version ? `${activeTool.actionName}@${activeTool.version}` : activeTool.actionName)
+    ? resolveTool(
+        activeTool.version
+          ? `${activeTool.actionName}@${activeTool.version}`
+          : activeTool.actionName
+      )
     : null
 
   // Build metadata for the tool
   const metadata = useMemo<ToolMetadata | null>(() => {
     if (!activeTool || !definition) return null
-
     return {
       definition,
       toolCallId: activeTool.toolCallId,
@@ -64,6 +72,54 @@ export function ToolRenderer({
     }
   }, [activeTool, definition, conversationId, executionId, tenantId, backendContext])
 
+  // Create a lifecycle controller for this tool invocation
+  const lifecycleControllerRef = useRef<LifecycleController>(createLifecycleController())
+
+  // Reset controller when tool changes
+  useEffect(() => {
+    if (activeTool) {
+      lifecycleControllerRef.current = createLifecycleController()
+      diagnostics.info('lifecycle', 'Tool UI opened', {
+        toolCallId: activeTool.toolCallId,
+        actionName: activeTool.actionName,
+        version: activeTool.version,
+      })
+    }
+  }, [activeTool?.toolCallId])
+
+  // Handle visibility changes (page hidden/visible)
+  useEffect(() => {
+    if (!activeTool) return
+
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible'
+      lifecycleControllerRef.current.triggerVisibilityChange(visible)
+      diagnostics.debug('lifecycle', `Visibility changed: ${visible ? 'visible' : 'hidden'}`, {
+        toolCallId: activeTool.toolCallId,
+      })
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [activeTool])
+
+  // Trigger destroy on unmount
+  useEffect(() => {
+    return () => {
+      if (activeTool) {
+        lifecycleControllerRef.current.triggerDestroy()
+        diagnostics.info('lifecycle', 'Tool UI closed', {
+          toolCallId: activeTool.toolCallId,
+          actionName: activeTool.actionName,
+        })
+      }
+    }
+    // Only run cleanup when tool changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTool?.toolCallId])
+
   return (
     <AnimatePresence>
       {activeTool && (
@@ -75,11 +131,23 @@ export function ToolRenderer({
           transition={{ duration: 0.2 }}
         >
           {metadata && definition ? (
-            <ToolProvider value={{ metadata, transport }}>
+            <ToolProvider
+              value={{
+                metadata,
+                transport,
+                lifecycleController: lifecycleControllerRef.current,
+              }}
+            >
               <ToolErrorBoundary
                 toolCallId={activeTool.toolCallId}
                 actionName={activeTool.actionName}
                 onCrash={(error) => {
+                  diagnostics.error('lifecycle', 'Tool crashed', {
+                    toolCallId: activeTool.toolCallId,
+                    actionName: activeTool.actionName,
+                    error: error.message,
+                    stack: error.stack,
+                  })
                   transport.sendResult(
                     activeTool.toolCallId,
                     'failed',
@@ -94,10 +162,7 @@ export function ToolRenderer({
               </ToolErrorBoundary>
             </ToolProvider>
           ) : (
-            <UnknownToolHandler
-              activeTool={activeTool}
-              transport={transport}
-            />
+            <UnknownToolHandler activeTool={activeTool} transport={transport} />
           )}
         </motion.div>
       )}
@@ -106,7 +171,31 @@ export function ToolRenderer({
 }
 
 // -------------------------------------------------------
-// Render Tool Component (handles lazy vs eager)
+// Prefetch Hook — Call when 'pause' arrives
+// -------------------------------------------------------
+
+/**
+ * Hook to prefetch tool components when approval is requested.
+ * This reduces perceived latency when the tool UI opens.
+ *
+ * Usage in ChatPage:
+ *   useToolPrefetch(pendingAction?.actionName)
+ */
+export function useToolPrefetch(actionName: string | undefined): void {
+  const prefetchedRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!actionName) return
+    if (prefetchedRef.current.has(actionName)) return
+
+    prefetchedRef.current.add(actionName)
+    diagnostics.debug('registry', `Prefetching tool: ${actionName}`, { actionName })
+    prefetchTool(actionName)
+  }, [actionName])
+}
+
+// -------------------------------------------------------
+// Render Tool Component
 // -------------------------------------------------------
 
 function RenderToolComponent({ definition }: { definition: HumanToolDefinition }) {
@@ -115,7 +204,7 @@ function RenderToolComponent({ definition }: { definition: HumanToolDefinition }
 }
 
 // -------------------------------------------------------
-// Tool Error Boundary — Catches crashes
+// Tool Error Boundary
 // -------------------------------------------------------
 
 interface ErrorBoundaryProps {
@@ -141,11 +230,12 @@ class ToolErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error(
-      `[ToolErrorBoundary] Tool "${this.props.actionName}" (${this.props.toolCallId}) crashed:`,
-      error,
-      errorInfo
-    )
+    diagnostics.error('lifecycle', `Tool "${this.props.actionName}" crashed`, {
+      toolCallId: this.props.toolCallId,
+      actionName: this.props.actionName,
+      error: error.message,
+      componentStack: errorInfo.componentStack || undefined,
+    })
     this.props.onCrash(error)
   }
 
@@ -159,9 +249,14 @@ class ToolErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
               <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">Tool Crashed</h3>
+              <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                Tool Crashed
+              </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                The tool <code className="font-mono bg-muted px-1 rounded">{this.props.actionName}</code>{' '}
+                The tool{' '}
+                <code className="font-mono bg-muted px-1 rounded">
+                  {this.props.actionName}
+                </code>{' '}
                 encountered an unexpected error and has been terminated.
               </p>
               <p className="text-[10px] text-muted-foreground/70 mt-2 font-mono">
@@ -178,7 +273,7 @@ class ToolErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
 }
 
 // -------------------------------------------------------
-// Unknown Tool Handler — Auto-fails and shows UI
+// Unknown Tool Handler — Auto-fails immediately
 // -------------------------------------------------------
 
 interface UnknownToolHandlerProps {
@@ -189,14 +284,14 @@ interface UnknownToolHandlerProps {
 function UnknownToolHandler({ activeTool, transport }: UnknownToolHandlerProps) {
   const hasReported = useRef(false)
 
-  // Auto-send failed result to backend on mount
   useEffect(() => {
     if (!hasReported.current) {
       hasReported.current = true
-      console.warn(
-        `[ToolRuntime] Unknown tool: "${activeTool.actionName}" (toolCallId: ${activeTool.toolCallId}). ` +
-          'Sending failed result to backend.'
-      )
+      diagnostics.warn('lifecycle', `Unknown tool: ${activeTool.actionName}`, {
+        toolCallId: activeTool.toolCallId,
+        actionName: activeTool.actionName,
+        version: activeTool.version,
+      })
       transport.sendResult(
         activeTool.toolCallId,
         'failed',

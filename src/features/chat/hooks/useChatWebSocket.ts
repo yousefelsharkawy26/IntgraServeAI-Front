@@ -17,6 +17,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { WS_API_BASE_URL, API_ENDPOINTS } from '@/constants/api'
 import type { ChatMessage, PendingAction, ToolCallInfo, ToolStatus } from '../types'
 import type { ActiveTool, ToolResultStatus } from '../tools/types'
+import { getCapabilityManifest } from '../tools/registry'
+import { diagnostics } from '../tools/diagnostics'
 
 export interface ChatWebSocketOptions {
   customerEmail: string
@@ -168,11 +170,30 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
     ws.onopen = () => {
       if (!mountedRef.current) { ws.close(); return }
-      ws.send(JSON.stringify({
+
+      // Build the connection payload with capability negotiation.
+      // The backend uses this to know which tools the frontend supports.
+      const capabilities = getCapabilityManifest()
+      const connectPayload = {
         session_id: sessionIdRef.current,
         customer_email: customerEmail,
         customer_name: customerName,
-      }))
+        // Client capability negotiation:
+        // Tell the backend which tools and capabilities this client supports.
+        // The backend can then avoid requesting unsupported interactions.
+        client_capabilities: {
+          tools: capabilities.tools,
+          total_tools: capabilities.totalTools,
+          total_types: capabilities.totalTypes,
+        },
+      }
+
+      diagnostics.info('transport', 'WebSocket connected, sending capabilities', {
+        totalTools: capabilities.totalTools,
+        totalTypes: capabilities.totalTypes,
+      })
+
+      ws.send(JSON.stringify(connectPayload))
     }
 
     ws.onmessage = (event) => {

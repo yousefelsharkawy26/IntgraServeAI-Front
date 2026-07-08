@@ -53,6 +53,7 @@ export interface ActiveTool {
 
 export interface ToolSchema {
   fields: SchemaField[]
+  version?: string // Schema version for evolution
 }
 
 export interface SchemaField {
@@ -99,8 +100,8 @@ export interface HumanToolDefinition<TParams = Record<string, unknown>> {
   /** Required permissions (e.g., ['tickets:create']) */
   permissions?: string[]
   
-  /** Tool capabilities (e.g., ['progress', 'logging']) */
-  capabilities?: string[]
+  /** Tool capabilities (e.g., ['upload', 'camera', 'geolocation']) */
+  capabilities?: ToolCapability[]
   
   /** Whether this tool supports resume after disconnect */
   supportsResume?: boolean
@@ -110,7 +111,28 @@ export interface HumanToolDefinition<TParams = Record<string, unknown>> {
   
   /** Default timeout in milliseconds */
   timeoutMs?: number
+
+  /** Plugin dependencies (e.g., ['customer-plugin@>=2.0']) */
+  dependencies?: string[]
 }
+
+// -------------------------------------------------------
+// Tool Capabilities — What the client can do
+// -------------------------------------------------------
+
+export type ToolCapability =
+  | 'upload'
+  | 'camera'
+  | 'microphone'
+  | 'geolocation'
+  | 'barcode_scanner'
+  | 'calendar'
+  | 'product_picker'
+  | 'file_picker'
+  | 'image_cropper'
+  | 'clipboard'
+  | 'notifications'
+  | string // Allow custom capabilities
 
 // -------------------------------------------------------
 // Tool Validator — Custom validation logic
@@ -145,4 +167,48 @@ export interface ToolMetadata {
   executionId?: string
   tenantId?: string
   backendContext?: Record<string, unknown>
+}
+
+// -------------------------------------------------------
+// Lifecycle Hooks — Tool lifecycle callbacks
+// -------------------------------------------------------
+
+export interface ToolLifecycleHooks {
+  /** Called when the tool is resumed after a disconnect/reconnect */
+  onResume?: () => void | Promise<void>
+  /** Called when the tool is suspended (e.g., tab hidden, disconnect imminent) */
+  onSuspend?: () => void | Promise<void>
+  /** Called when WebSocket reconnects while tool is active */
+  onReconnect?: () => void | Promise<void>
+  /** Called when page visibility changes */
+  onVisibilityChange?: (visible: boolean) => void
+  /** Called when the tool is being destroyed (cleanup) */
+  onDestroy?: () => void | Promise<void>
+}
+
+// -------------------------------------------------------
+// Diagnostics — Runtime observability
+// -------------------------------------------------------
+
+export type DiagnosticLevel = 'debug' | 'info' | 'warn' | 'error'
+
+export interface DiagnosticEvent {
+  timestamp: number
+  level: DiagnosticLevel
+  category: 'lifecycle' | 'registry' | 'transport' | 'validation' | 'plugin'
+  message: string
+  toolCallId?: string
+  actionName?: string
+  details?: Record<string, unknown>
+}
+
+// -------------------------------------------------------
+// Plugin Loader — Dynamic plugin loading abstraction
+// -------------------------------------------------------
+
+export interface PluginLoader {
+  /** Load a plugin by identifier (URL, module path, etc.) */
+  load(identifier: string): Promise<HumanToolDefinition[]>
+  /** Check if a plugin is available */
+  isAvailable(identifier: string): Promise<boolean>
 }
