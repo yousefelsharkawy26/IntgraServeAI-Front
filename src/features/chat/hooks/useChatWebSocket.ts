@@ -126,6 +126,13 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   // Tracks the tool_call_id from the 'pause' event.
   // Used by 'tool_input_required' and 'sendToolResult'.
   const activeToolCallIdRef = useRef<string | null>(null)
+  // Tracks the intended terminal state when sendToolResult is called.
+  // Used by finalizeRunningTools to preserve the correct status.
+  const intendedTerminalStatesRef = useRef<Map<string, ToolStatus>>(new Map())
+  // Prevents duplicate tool_result sends (similar to confirmSentRef)
+  const resultSentRef = useRef(false)
+  // Marks that we're stopping generation (prevents premature cleanup)
+  const stoppingRef = useRef(false)
 
   // -------------------------------------------------------
   // rAF-batched flush of streaming tokens
@@ -164,20 +171,49 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   // -------------------------------------------------------
   const finalizeRunningTools = useCallback(() => {
     const now = new Date().toISOString()
+    const intendedStates = intendedTerminalStatesRef.current
+    
     setToolCalls((prev) => {
       const nonTerminal: ToolStatus[] = ['running', 'waiting_for_approval', 'waiting_for_user_input']
       if (!prev.some((t) => nonTerminal.includes(t.status))) return prev
-      return prev.map((t) =>
-        nonTerminal.includes(t.status)
-          ? { ...t, status: 'completed' as const, output: 'Completed', endTime: now }
-          : t
-      )
+      
+      return prev.map((t) => {
+        if (!nonTerminal.includes(t.status)) return t
+        
+        // Use intended state if this is the tool we're tracking
+        const intendedStatus = intendedStates.get(t.id)
+        if (intendedStatus) {
+          const outputText = intendedStatus === 'completed' ? 'Completed' :
+                           intendedStatus === 'cancelled' ? 'Cancelled by user' :
+                           intendedStatus === 'failed' ? 'Failed' : 'Completed'
+          intendedStates.delete(t.id)
+          return { ...t, status: intendedStatus, output: outputText, endTime: now }
+        }
+        
+        // Default to completed for other tools
+        return { ...t, status: 'completed' as const, output: 'Completed', endTime: now }
+      })
     })
+    
     setMessages((prev) =>
       prev.map((m) => {
         const tool = m.toolCalls?.[0]
         const nonTerminal: ToolStatus[] = ['running', 'waiting_for_approval', 'waiting_for_user_input']
         if (!tool || !nonTerminal.includes(tool.status)) return m
+        
+        // Use intended state if this is the tool we're tracking
+        const intendedStatus = intendedStates.get(m.id)
+        if (intendedStatus) {
+          const outputText = intendedStatus === 'completed' ? 'Completed' :
+                           intendedStatus === 'cancelled' ? 'Cancelled by user' :
+                           intendedStatus === 'failed' ? 'Failed' : 'Completed'
+          return {
+            ...m,
+            content: `${tool.name} ${intendedStatus}`,
+            toolCalls: [{ ...tool, status: intendedStatus, output: outputText, endTime: now }],
+          }
+        }
+        
         return {
           ...m,
           content: `${tool.name} completed`,
@@ -185,6 +221,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
       })
     )
+    
+    // Clear the refs
+    intendedStates.clear()
     currentToolCallRef.current = null
     activeToolCallIdRef.current = null
   }, [])
@@ -318,9 +357,28 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
           const completedTool = currentToolCallRef.current
           if (completedTool) {
+            // Check if we have an intended status for this tool
+            const intendedStatus = intendedTerminalStatesRef.current.get(completedTool.id)
             const outputText = data.result || 'Completed'
-            updateToolStatus(completedTool.id, 'completed', outputText)
+            
+            if (intendedStatus) {
+              // Use the intended status (e.g., cancelled, failed)
+              const finalOutput = intendedStatus === 'completed' ? outputText : 
+                                intendedStatus === 'cancelled' ? 'Cancelled by user' : 
+                                intendedStatus === 'failed' ? 'Failed' : outputText
+              updateToolStatus(completedTool.id, intendedStatus, finalOutput)
+              intendedTerminalStatesRef.current.delete(completedTool.id)
+            } else {
+              // No intended status, use backend's completed status
+              updateToolStatus(completedTool.id, 'completed', outputText)
+            }
+            
             currentToolCallRef.current = null
+          }
+          
+          // If we were stopping, clear the flag
+          if (stoppingRef.current) {
+            stoppingRef.current = false
           }
           break
         }
@@ -336,8 +394,25 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
           const errorTool = currentToolCallRef.current
           if (errorTool) {
-            updateToolStatus(errorTool.id, 'failed', data.error || 'Tool execution failed')
+            // Check if we have an intended status for this tool
+            const intendedStatus = intendedTerminalStatesRef.current.get(errorTool.id)
+            
+            if (intendedStatus && intendedStatus !== 'failed') {
+              // Use the intended status if it's not already failed
+              const finalOutput = intendedStatus === 'cancelled' ? 'Cancelled by user' : data.error || 'Tool execution failed'
+              updateToolStatus(errorTool.id, intendedStatus, finalOutput)
+              intendedTerminalStatesRef.current.delete(errorTool.id)
+            } else {
+              // Use failed status from backend
+              updateToolStatus(errorTool.id, 'failed', data.error || 'Tool execution failed')
+            }
+            
             currentToolCallRef.current = null
+          }
+          
+          // If we were stopping, clear the flag
+          if (stoppingRef.current) {
+            stoppingRef.current = false
           }
           break
         }
@@ -395,6 +470,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
             actionName: data.action_name,
             toolCallId: inputToolCallId,
           })
+
+          // Reset the result sent guard for this new tool input request
+          resultSentRef.current = false
 
           // Transition the tool to waiting_for_user_input
           if (currentToolCallRef.current) {
@@ -469,6 +547,35 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
           if (data.tool_call_id) activeToolCallIdRef.current = data.tool_call_id
 
+          // Check if a ToolExecutionCard with this tool_call_id already exists
+          const existingToolCall = toolCalls.find(t => t.serverToolCallId === data.tool_call_id)
+          
+          if (!existingToolCall) {
+            // Create a synthetic ToolExecutionCard to restore visual context
+            const localId = `tool-${generateId()}`
+            const toolCall: ToolCallInfo = {
+              id: localId,
+              serverToolCallId: data.tool_call_id,
+              name: data.action_name || 'Tool',
+              status: 'waiting_for_approval',
+              input: data.params || {},
+              startTime: new Date().toISOString(),
+            }
+
+            currentToolCallRef.current = toolCall
+            setToolCalls((prev) => [...prev, toolCall])
+            setMessages((prev) => [...prev, {
+              id: localId,
+              content: `Waiting for approval: ${toolCall.name}`,
+              sender: 'system',
+              timestamp: new Date().toISOString(),
+              toolCalls: [toolCall],
+            }])
+          } else {
+            // Tool already exists, just update the ref
+            currentToolCallRef.current = existingToolCall
+          }
+
           setPendingAction({
             toolCallId: data.tool_call_id || 'unknown',
             actionName: data.action_name || 'Action',
@@ -491,6 +598,35 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
           const restoreToolCallId = data.tool_call_id || activeToolCallIdRef.current || 'unknown'
           if (data.tool_call_id) activeToolCallIdRef.current = data.tool_call_id
+
+          // Check if a ToolExecutionCard with this tool_call_id already exists
+          const existingToolCall = toolCalls.find(t => t.serverToolCallId === data.tool_call_id)
+          
+          if (!existingToolCall) {
+            // Create a synthetic ToolExecutionCard to restore visual context
+            const localId = `tool-${generateId()}`
+            const toolCall: ToolCallInfo = {
+              id: localId,
+              serverToolCallId: data.tool_call_id,
+              name: data.action_name || 'Tool',
+              status: 'waiting_for_user_input',
+              input: data.params || {},
+              startTime: new Date().toISOString(),
+            }
+
+            currentToolCallRef.current = toolCall
+            setToolCalls((prev) => [...prev, toolCall])
+            setMessages((prev) => [...prev, {
+              id: localId,
+              content: `Waiting for user input: ${toolCall.name}`,
+              sender: 'system',
+              timestamp: new Date().toISOString(),
+              toolCalls: [toolCall],
+            }])
+          } else {
+            // Tool already exists, just update the ref
+            currentToolCallRef.current = existingToolCall
+          }
 
           setActiveTool({
             toolCallId: restoreToolCallId,
@@ -599,9 +735,30 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   const stopGeneration = useCallback(() => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
+    
+    // Mark that we're stopping (prevents premature cleanup)
+    stoppingRef.current = true
+    
     ws.send(JSON.stringify({ type: 'stop' }))
     if (rafPendingRef.current) flushStreamingTokens()
     setIsTyping(false)
+    
+    // Don't immediately clear state - wait for backend terminal events
+    // (tool_end, tool_error, or done will handle cleanup)
+    // Only clear these immediately:
+    setPendingAction(null)
+    setActiveTool(null)
+    resultSentRef.current = false
+    confirmSentRef.current = false
+    
+    // Set a timeout to force cleanup if no terminal event arrives within 5 seconds
+    setTimeout(() => {
+      if (stoppingRef.current) {
+        stoppingRef.current = false
+        currentToolCallRef.current = null
+        activeToolCallIdRef.current = null
+      }
+    }, 5000)
   }, [flushStreamingTokens])
 
   // ---- Edit Message ----
@@ -651,12 +808,11 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     setIsTyping(true)
 
     if (approved) {
-      // Tool transitions back to 'running' — backend will either:
-      // 1. Execute it immediately (non-interactive) → tool_end
-      // 2. Request human input (interactive) → tool_input_required
-      if (currentToolCallRef.current) {
-        updateToolStatus(currentToolCallRef.current.id, 'running')
-      }
+      // Don't transition to 'running' optimistically — let backend events drive the state.
+      // Backend will send either:
+      // 1. tool_end (non-interactive) → completed
+      // 2. tool_input_required (interactive) → waiting_for_user_input
+      // This avoids the brief flicker: waiting_for_approval → running → waiting_for_user_input
     } else {
       // User declined — backend resumes AI with "Action aborted".
       // Mark tool as cancelled locally (backend will confirm via tool_end or done).
@@ -687,6 +843,13 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
       return
     }
 
+    // Prevent duplicate sends (similar to confirmSentRef)
+    if (resultSentRef.current) {
+      diagnostics.warn('transport', 'Duplicate tool_result prevented', { toolCallId })
+      return
+    }
+    resultSentRef.current = true
+
     // Build the result payload based on status
     let resultPayload: unknown
     if (status === 'success') {
@@ -695,6 +858,13 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
       resultPayload = { cancelled: true, reason: 'User cancelled' }
     } else {
       resultPayload = { error: (payload as any)?.error || 'Tool failed' }
+    }
+
+    // Track the intended terminal state so finalizeRunningTools can preserve it
+    if (currentToolCallRef.current) {
+      const toolStatus: ToolStatus = status === 'success' ? 'completed' : 
+                                     status === 'cancelled' ? 'cancelled' : 'failed'
+      intendedTerminalStatesRef.current.set(currentToolCallRef.current.id, toolStatus)
     }
 
     // Send tool_result to the backend

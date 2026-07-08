@@ -28,7 +28,7 @@ import {
   useEffect,
   useRef,
 } from 'react'
-import type { ToolMetadata, ValidationResult, ToolLifecycleHooks } from './types'
+import type { ToolMetadata, ValidationResult } from './types'
 import { validatePayload } from './validation'
 import { diagnostics } from './diagnostics'
 

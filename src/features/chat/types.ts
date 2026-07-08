@@ -33,6 +33,7 @@ export interface ChatMessage {
 export type ToolStatus =
   | 'pending'
   | 'waiting_for_approval'
+  | 'waiting_for_user_input'
   | 'running'
   | 'completed'
   | 'failed'

@@ -3,7 +3,7 @@
 // Full-page premium AI chat experience
 // ============================================================
 
-import React, { useCallback, useEffect, useRef, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   PanelLeft, CircleDot,
@@ -176,14 +176,14 @@ export default function ChatPage() {
   // ---- Tool Transport — bridges the runtime to the WebSocket layer ----
   const toolTransport = useMemo<ToolTransport>(
     () => ({
-      sendResult: (toolCallId, status, payload, reason) => {
-        sendToolResult(toolCallId, status, payload)
+      sendResult: (_toolCallId, status, payload, _reason) => {
+        sendToolResult(_toolCallId, status, payload)
       },
       // Optional: forward progress and log events to backend
-      sendProgress: (toolCallId, percent, message) => {
+      sendProgress: (_toolCallId, _percent, _message) => {
         // Future: ws.send({ type: 'tool_progress', tool_call_id, percent, message })
       },
-      sendLog: (toolCallId, message, level) => {
+      sendLog: (_toolCallId, _message, _level) => {
         // Future: ws.send({ type: 'tool_log', tool_call_id, message, level })
       },
     }),

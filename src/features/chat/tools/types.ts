@@ -163,6 +163,7 @@ export interface ToolMetadata {
   toolCallId: string
   actionName: string
   version: string
+  params: Record<string, unknown>
   conversationId: string | null
   executionId?: string
   tenantId?: string

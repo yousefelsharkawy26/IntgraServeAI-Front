@@ -314,6 +314,13 @@ const TOOL_STATUS_CONFIG: Record<
     spin: false,
     label: 'Awaiting Approval',
   },
+  waiting_for_user_input: {
+    icon: Shield,
+    color: 'text-purple-500',
+    bg: 'bg-purple-50 dark:bg-purple-950/20',
+    spin: false,
+    label: 'Awaiting Input',
+  },
   running: {
     icon: Loader2,
     color: 'text-blue-500',

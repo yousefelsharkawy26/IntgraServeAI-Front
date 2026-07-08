@@ -16,7 +16,6 @@ import React, {
   useEffect,
   Component,
   useRef,
-  useCallback,
 } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -65,6 +64,7 @@ export function ToolRenderer({
       toolCallId: activeTool.toolCallId,
       actionName: activeTool.actionName,
       version: activeTool.version || definition.version,
+      params: activeTool.params || {},
       conversationId,
       executionId,
       tenantId,
