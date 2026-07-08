@@ -72,6 +72,7 @@ export default function ChatPage() {
     editMessage: wsEditMessage,
     removeMessage: wsRemoveMessage,
     confirmAction: wsConfirmAction,
+    completeToolCall,
     stopGeneration,
   } = useChatWebSocket({
     customerEmail: DEMO_USER.email,
@@ -287,9 +288,20 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      <CreateTicketModal 
+      <CreateTicketModal
         open={isCreateTicketModalOpen}
-        onClose={() => setIsCreateTicketModalOpen(false)}
+        onTicketCreated={() => {
+          // Ticket was successfully created via REST API — transition the
+          // associated tool to 'completed' so the UI reflects the terminal state.
+          completeToolCall('completed', 'Ticket created successfully')
+        }}
+        onClose={() => {
+          // Modal is closing. If the tool is still running (i.e. the user
+          // cancelled without submitting), transition it to 'cancelled'.
+          // completeToolCall is a no-op if the tool already reached a terminal state.
+          completeToolCall('cancelled', 'Cancelled by user')
+          setIsCreateTicketModalOpen(false)
+        }}
       />
     </ChatLayout>
   )

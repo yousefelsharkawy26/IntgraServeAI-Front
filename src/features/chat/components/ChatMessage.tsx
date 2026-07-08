@@ -285,25 +285,77 @@ export const SystemMessage = React.memo(function SystemMessage({ message }: Syst
 // Tool Execution Card
 // ============================================================
 
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
-import type { ToolCallInfo } from '../types'
+import {
+  CheckCircle2, XCircle, Loader2, Clock, Shield, Ban, Timer,
+} from 'lucide-react'
+import type { ToolCallInfo, ToolStatus } from '../types'
 
 interface ToolExecutionCardProps {
   toolCall: ToolCallInfo
   className?: string
 }
 
+/** Visual configuration for every tool lifecycle state. */
+const TOOL_STATUS_CONFIG: Record<
+  ToolStatus,
+  { icon: typeof Loader2; color: string; bg: string; spin: boolean; label: string }
+> = {
+  pending: {
+    icon: Clock,
+    color: 'text-slate-400',
+    bg: 'bg-slate-50 dark:bg-slate-950/20',
+    spin: false,
+    label: 'Pending',
+  },
+  waiting_for_approval: {
+    icon: Shield,
+    color: 'text-amber-500',
+    bg: 'bg-amber-50 dark:bg-amber-950/20',
+    spin: false,
+    label: 'Awaiting Approval',
+  },
+  running: {
+    icon: Loader2,
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-950/20',
+    spin: true,
+    label: 'Running',
+  },
+  completed: {
+    icon: CheckCircle2,
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+    spin: false,
+    label: 'Completed',
+  },
+  failed: {
+    icon: XCircle,
+    color: 'text-red-500',
+    bg: 'bg-red-50 dark:bg-red-950/20',
+    spin: false,
+    label: 'Failed',
+  },
+  cancelled: {
+    icon: Ban,
+    color: 'text-orange-500',
+    bg: 'bg-orange-50 dark:bg-orange-950/20',
+    spin: false,
+    label: 'Cancelled',
+  },
+  timeout: {
+    icon: Timer,
+    color: 'text-rose-500',
+    bg: 'bg-rose-50 dark:bg-rose-950/20',
+    spin: false,
+    label: 'Timed Out',
+  },
+}
+
 export const ToolExecutionCard = React.memo(function ToolExecutionCard({
   toolCall,
   className,
 }: ToolExecutionCardProps) {
-  const statusConfig = {
-    running: { icon: Loader2, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/20', spin: true },
-    completed: { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20', spin: false },
-    failed: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-950/20', spin: false },
-  }
-
-  const config = statusConfig[toolCall.status]
+  const config = TOOL_STATUS_CONFIG[toolCall.status] ?? TOOL_STATUS_CONFIG.running
   const Icon = config.icon
 
   return (
@@ -323,9 +375,14 @@ export const ToolExecutionCard = React.memo(function ToolExecutionCard({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">{toolCall.name}</span>
             <span className={cn('text-[10px] uppercase tracking-wider font-medium', config.color)}>
-              {toolCall.status}
+              {config.label}
             </span>
           </div>
+          {toolCall.output && toolCall.status !== 'running' && toolCall.status !== 'pending' && toolCall.status !== 'waiting_for_approval' && (
+            <p className="mt-1 text-[11px] text-muted-foreground truncate">
+              {toolCall.output}
+            </p>
+          )}
           {toolCall.input && Object.keys(toolCall.input).length > 0 && (
             <pre className="mt-1.5 text-[11px] text-muted-foreground overflow-x-auto">
               <code>{JSON.stringify(toolCall.input, null, 2)}</code>

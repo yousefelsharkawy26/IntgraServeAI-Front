@@ -12,7 +12,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { WS_API_BASE_URL, API_ENDPOINTS } from '@/constants/api'
-import type { ChatMessage, PendingAction, ToolCallInfo } from '../types'
+import type { ChatMessage, PendingAction, ToolCallInfo, ToolStatus } from '../types'
 
 export interface ChatWebSocketOptions {
   customerEmail: string
@@ -33,6 +33,8 @@ export interface UseChatWebSocketReturn {
   editMessage: (messageId: string, newContent: string) => void
   removeMessage: (messageId: string) => void
   confirmAction: (approved: boolean) => void
+  /** Transition the currently active tool (or a specific one) to a terminal state. */
+  completeToolCall: (status?: ToolStatus, output?: string) => void
   clearMessages: () => void
   stopGeneration: () => void
 }
@@ -88,6 +90,10 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
   // click, this ref provides a belt-and-suspenders guarantee at the
   // transport layer.
   const confirmSentRef = useRef(false)
+  // Tracks the server tool_call_id of the currently active tool invocation
+  // (the one associated with the open modal or in-flight execution).
+  // Used by completeToolCall() to find which tool to finalize.
+  const activeToolCallIdRef = useRef<string | null>(null)
 
   // -------------------------------------------------------
   // rAF-batched flush of streaming tokens to React state.
@@ -217,6 +223,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           const localId = `tool-${generateId()}`
           const toolCall: ToolCallInfo = {
             id: localId,
+            serverToolCallId: serverToolCallId,
             name: data.name || 'Tool',
             status: 'running',
             input: data.input || {},
@@ -226,6 +233,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           // Map server tool_call_id → local ID for future deduplication.
           if (serverToolCallId) {
             serverToolIdMapRef.current.set(serverToolCallId, localId)
+            activeToolCallIdRef.current = serverToolCallId
           }
 
           currentToolCallRef.current = toolCall
@@ -304,6 +312,31 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           }
           // Reset the confirm guard for this new approval cycle.
           confirmSentRef.current = false
+
+          // Transition the active tool to 'waiting_for_approval'.
+          const pauseServerId: string | undefined = data.tool_call_id
+          if (pauseServerId) activeToolCallIdRef.current = pauseServerId
+          const pauseLocalId = pauseServerId
+            ? serverToolIdMapRef.current.get(pauseServerId) ?? null
+            : currentToolCallRef.current?.id ?? null
+
+          if (pauseLocalId) {
+            setToolCalls((prev) =>
+              prev.map((t) =>
+                t.id === pauseLocalId ? { ...t, status: 'waiting_for_approval' as const } : t
+              )
+            )
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== pauseLocalId || !m.toolCalls?.length) return m
+                return {
+                  ...m,
+                  toolCalls: [{ ...m.toolCalls[0], status: 'waiting_for_approval' as const }],
+                }
+              })
+            )
+          }
+
           setPendingAction({
             toolCallId: data.tool_call_id || 'unknown',
             actionName: data.action_name || 'Action',
@@ -325,6 +358,34 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           }
           aiMsgIdRef.current = null
           aiBufferRef.current = ''
+
+          // Finalize any tools that are still in 'running' state.
+          // This handles the case where the backend sends 'done' without
+          // sending 'tool_end' first (e.g. when the tool result was delivered
+          // out-of-band via REST API rather than the WebSocket channel).
+          const now = new Date().toISOString()
+          setToolCalls((prev) => {
+            const hasRunning = prev.some((t) => t.status === 'running')
+            if (!hasRunning) return prev
+            return prev.map((t) =>
+              t.status === 'running'
+                ? { ...t, status: 'completed' as const, output: 'Completed', endTime: now }
+                : t
+            )
+          })
+          setMessages((prev) =>
+            prev.map((m) => {
+              const tool = m.toolCalls?.[0]
+              if (!tool || tool.status !== 'running') return m
+              return {
+                ...m,
+                content: `${tool.name} completed`,
+                toolCalls: [{ ...tool, status: 'completed' as const, output: 'Completed', endTime: now }],
+              }
+            })
+          )
+          currentToolCallRef.current = null
+          activeToolCallIdRef.current = null
           break
         }
 
@@ -376,6 +437,11 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           // card to appear alongside the modal, which is the root cause of the
           // duplicate-approval bug (proven by runtime simulation).
           setIsTyping(false)
+          // Remember which tool is associated with this modal so that
+          // completeToolCall() can finalize it when the user submits or cancels.
+          if (data.tool_call_id) {
+            activeToolCallIdRef.current = data.tool_call_id
+          }
           setIsCreateTicketModalOpen(true)
           break
         }
@@ -442,9 +508,10 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     setMessages((prev) => [...prev, userMsg])
     setIsTyping(true)
     setPendingAction(null)
-    // Reset guards for the new conversation turn.
+    // Reset the confirm guard for the new conversation turn.
+    // NOTE: Do NOT clear serverToolIdMapRef here — late-arriving 'tool_end'
+    // events from the previous turn still need the mapping to find their tool.
     confirmSentRef.current = false
-    serverToolIdMapRef.current.clear()
 
     ws.send(JSON.stringify({ type: 'chat', content: content.trim() }))
   }, [])
@@ -456,9 +523,8 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     setIsTyping(true)
     setPendingAction(null)
-    // Reset guards for the new conversation turn.
+    // Reset the confirm guard for the new conversation turn.
     confirmSentRef.current = false
-    serverToolIdMapRef.current.clear()
     ws.send(JSON.stringify({ type: 'generate', content: content.trim() }))
   }, [])
 
@@ -517,12 +583,139 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     ws.send(JSON.stringify({ type: 'confirm', approved }))
     setPendingAction(null)
     setIsTyping(true)
+
+    if (approved) {
+      // Transition the tool back to 'running' after approval.
+      const approveServerId = activeToolCallIdRef.current
+      const approveLocalId = approveServerId
+        ? serverToolIdMapRef.current.get(approveServerId) ?? null
+        : currentToolCallRef.current?.id ?? null
+      if (approveLocalId) {
+        setToolCalls((prev) =>
+          prev.map((t) =>
+            t.id === approveLocalId ? { ...t, status: 'running' as const } : t
+          )
+        )
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== approveLocalId || !m.toolCalls?.length) return m
+            return {
+              ...m,
+              content: `Running ${m.toolCalls[0].name}...`,
+              toolCalls: [{ ...m.toolCalls[0], status: 'running' as const }],
+            }
+          })
+        )
+      }
+    } else {
+      // User declined — mark the tool as cancelled.
+      const declineServerId = activeToolCallIdRef.current
+      const declineLocalId = declineServerId
+        ? serverToolIdMapRef.current.get(declineServerId) ?? null
+        : currentToolCallRef.current?.id ?? null
+      if (declineLocalId) {
+        const now = new Date().toISOString()
+        setToolCalls((prev) =>
+          prev.map((t) =>
+            t.id === declineLocalId ? { ...t, status: 'cancelled' as const, output: 'Declined by user', endTime: now } : t
+          )
+        )
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== declineLocalId || !m.toolCalls?.length) return m
+            return {
+              ...m,
+              content: `${m.toolCalls[0].name} cancelled`,
+              toolCalls: [{ ...m.toolCalls[0], status: 'cancelled' as const, output: 'Declined by user', endTime: now }],
+            }
+          })
+        )
+        currentToolCallRef.current = null
+        activeToolCallIdRef.current = null
+      }
+    }
+  }, [])
+
+  // ---- Complete Tool Call ----
+  // Transitions a tool from 'running' to a terminal state.
+  // Used when:
+  //   - The user submits the CreateTicketModal (→ 'completed')
+  //   - The user cancels the modal (→ 'cancelled')
+  //   - The 'done' event arrives with tools still running (→ 'completed')
+  //   - A timeout occurs (→ 'timeout')
+  // This closes the gap where the backend never sends 'tool_end' because
+  // the ticket was created via REST API, not via the WebSocket channel.
+
+  const completeToolCall = useCallback((status: ToolStatus = 'completed', output?: string) => {
+    // Resolve which tool to finalize.
+    const serverId = activeToolCallIdRef.current
+    let targetLocalId: string | null = null
+
+    if (serverId && serverToolIdMapRef.current.has(serverId)) {
+      targetLocalId = serverToolIdMapRef.current.get(serverId)!
+    } else if (currentToolCallRef.current) {
+      targetLocalId = currentToolCallRef.current.id
+    }
+
+    if (!targetLocalId) return
+
+    const endTime = new Date().toISOString()
+    const outputText = output || (status === 'completed' ? 'Completed' : status)
+    const completedToolRef = currentToolCallRef.current
+
+    setToolCalls((prev) => {
+      const target = prev.find((t) => t.id === targetLocalId)
+      if (!target || target.status !== 'running') return prev // Already terminal
+      const updatedTool: ToolCallInfo = {
+        ...target,
+        status,
+        output: outputText,
+        endTime,
+      }
+      if (completedToolRef?.id === targetLocalId) {
+        currentToolCallRef.current = null
+      }
+      return prev.map((t) => (t.id === targetLocalId ? updatedTool : t))
+    })
+
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== targetLocalId) return m
+        const tool = m.toolCalls?.[0]
+        if (!tool || tool.status !== 'running') return m // Already terminal
+        const updatedTool: ToolCallInfo = {
+          ...tool,
+          status,
+          output: outputText,
+          endTime,
+        }
+        return {
+          ...m,
+          content: `${updatedTool.name} ${status}`,
+          toolCalls: [updatedTool],
+        }
+      })
+    )
+
+    // Clear the active tool ref so subsequent calls are no-ops.
+    activeToolCallIdRef.current = null
+
+    // Notify the backend so it can update its own state (best-effort).
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN && serverId) {
+      ws.send(JSON.stringify({
+        type: 'tool_complete',
+        tool_call_id: serverId,
+        status,
+      }))
+    }
   }, [])
 
   // ---- Clear Messages ----
 
   const clearMessages = useCallback(() => {
     setMessages([])
+    setToolCalls([])
     aiMsgIdRef.current = null
     aiBufferRef.current = ''
     pendingTokensRef.current = ''
@@ -530,6 +723,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     confirmSentRef.current = false
     serverToolIdMapRef.current.clear()
     currentToolCallRef.current = null
+    activeToolCallIdRef.current = null
   }, [])
 
   // ---- Lifecycle ----
@@ -555,6 +749,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     editMessage,
     removeMessage,
     confirmAction,
+    completeToolCall,
     clearMessages,
     stopGeneration,
   }

@@ -26,9 +26,11 @@ type CreateTicketFormData = z.infer<typeof createTicketSchema>
 interface CreateTicketModalProps {
   open: boolean
   onClose: () => void
+  /** Called after the ticket REST API call succeeds, before onClose. */
+  onTicketCreated?: () => void
 }
 
-export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
+export function CreateTicketModal({ open, onClose, onTicketCreated }: CreateTicketModalProps) {
   const { createTicket } = useTicketMutations()
 
   const {
@@ -66,6 +68,9 @@ export function CreateTicketModal({ open, onClose }: CreateTicketModalProps) {
   const onSubmit = (data: CreateTicketFormData) => {
     createTicket.mutate(data, {
       onSuccess: () => {
+        // Notify the parent that the ticket was created so it can
+        // transition the associated tool call to a terminal state.
+        onTicketCreated?.()
         onClose()
       },
     })

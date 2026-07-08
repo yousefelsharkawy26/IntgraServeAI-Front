@@ -29,10 +29,22 @@ export interface ChatMessage {
   isError?: boolean
 }
 
+/** All possible tool lifecycle states reported by the backend or derived locally. */
+export type ToolStatus =
+  | 'pending'
+  | 'waiting_for_approval'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'timeout'
+
 export interface ToolCallInfo {
   id: string
+  /** Server-provided identifier for this tool invocation (may be undefined for legacy events). */
+  serverToolCallId?: string
   name: string
-  status: 'running' | 'completed' | 'failed'
+  status: ToolStatus
   input?: Record<string, unknown>
   output?: string
   startTime?: string
