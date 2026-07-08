@@ -1,13 +1,12 @@
 // ============================================================
-// Create Ticket Tool
+// Create Ticket Tool — Component
 // ============================================================
-// A self-contained tool component that renders a ticket creation
-// form and sends the result back through the Tool Context.
-// This component knows NOTHING about the chat infrastructure.
+// Uses the Tool SDK (useTool) to interact with the runtime.
+// Knows NOTHING about the chat infrastructure.
 // ============================================================
 
 import { useState } from 'react'
-import { useToolContext } from '../ToolContext'
+import { useTool } from '../sdk'
 import { useTicketMutations } from '@/features/tickets/hooks/useTickets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,18 +15,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { X, Loader2 } from 'lucide-react'
 
 export function CreateTicketTool() {
-  const { toolCallId, params, sendResult, cancel } = useToolContext()
+  const tool = useTool()
   const { createTicket } = useTicketMutations()
 
   // Pre-fill from backend params if available
-  const [subject, setSubject] = useState((params.subject as string) || '')
-  const [description, setDescription] = useState((params.description as string) || '')
-  const [priority, setPriority] = useState((params.priority as string) || 'medium')
-  const [customerName, setCustomerName] = useState((params.customerName as string) || '')
-  const [customerEmail, setCustomerEmail] = useState((params.customerEmail as string) || '')
+  const [subject, setSubject] = useState((tool.params.subject as string) || '')
+  const [description, setDescription] = useState((tool.params.description as string) || '')
+  const [priority, setPriority] = useState((tool.params.priority as string) || 'medium')
+  const [customerName, setCustomerName] = useState((tool.params.customerName as string) || '')
+  const [customerEmail, setCustomerEmail] = useState((tool.params.customerEmail as string) || '')
   const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const isSubmitting = createTicket.isPending
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {}
@@ -43,13 +40,24 @@ export function CreateTicketTool() {
     e.preventDefault()
     if (!validate()) return
 
+    tool.setBusy()
+    tool.log('Creating ticket...', 'info')
+    tool.progress(30, 'Submitting ticket...')
+
     createTicket.mutate(
-      { subject, description, priority: priority as any, customerName, customerEmail },
+      {
+        subject,
+        description,
+        priority: priority as 'low' | 'medium' | 'high' | 'urgent',
+        customerName,
+        customerEmail,
+      },
       {
         onSuccess: (newTicket) => {
-          // Send the result back to the backend via the tool runtime.
-          // The backend owns the lifecycle — we just report what happened.
-          sendResult({
+          tool.log(`Ticket created: #${newTicket.id}`, 'info')
+          tool.progress(100, 'Ticket created!')
+          // Use the SDK to send the result — validation happens automatically
+          tool.complete({
             ticketId: newTicket.id,
             subject,
             priority,
@@ -57,10 +65,11 @@ export function CreateTicketTool() {
             customerEmail,
           })
         },
-        onError: (err: any) => {
-          // Report failure through the tool runtime contract.
-          // We do NOT call cancel() — that means user-initiated cancellation.
-          // A failed API call is a 'failed' result.
+        onError: (err: unknown) => {
+          const message = err instanceof Error ? err.message : 'Failed to create ticket'
+          tool.log(`Ticket creation failed: ${message}`, 'error')
+          tool.setIdle()
+          tool.fail(message, 'api_error')
         },
       }
     )
@@ -69,19 +78,23 @@ export function CreateTicketTool() {
   return (
     <div className="fixed left-1/2 top-[5%] z-50 w-full max-w-xl -translate-x-1/2 rounded-xl border bg-card shadow-2xl max-h-[90vh] overflow-y-auto">
       {/* Backdrop */}
-      <div className="fixed inset-0 z-[-1] bg-black/40" onClick={cancel} />
+      <div
+        className="fixed inset-0 z-[-1] bg-black/40"
+        onClick={() => !tool.isBusy && tool.cancel()}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div>
-          <h2 className="text-lg font-semibold">Create Ticket</h2>
+          <h2 className="text-lg font-semibold">{tool.metadata.definition.label}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tool: {toolCallId}
+            {tool.actionName}@{tool.version} • {tool.toolCallId}
           </p>
         </div>
         <button
-          onClick={cancel}
-          className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors"
+          onClick={() => tool.cancel()}
+          className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          disabled={tool.isBusy}
           aria-label="Cancel"
         >
           <X className="h-5 w-5" />
@@ -97,6 +110,7 @@ export function CreateTicketTool() {
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Brief description of the issue"
             className="mt-1.5 h-10"
+            disabled={tool.isBusy}
           />
           {errors.subject && <p className="mt-1 text-xs text-red-500">{errors.subject}</p>}
         </div>
@@ -108,6 +122,7 @@ export function CreateTicketTool() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Provide detailed information about the ticket..."
             className="mt-1.5 min-h-[100px] resize-none"
+            disabled={tool.isBusy}
           />
           {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}
         </div>
@@ -120,6 +135,7 @@ export function CreateTicketTool() {
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="John Doe"
               className="mt-1.5 h-10"
+              disabled={tool.isBusy}
             />
             {errors.customerName && <p className="mt-1 text-xs text-red-500">{errors.customerName}</p>}
           </div>
@@ -131,6 +147,7 @@ export function CreateTicketTool() {
               onChange={(e) => setCustomerEmail(e.target.value)}
               placeholder="customer@example.com"
               className="mt-1.5 h-10"
+              disabled={tool.isBusy}
             />
             {errors.customerEmail && <p className="mt-1 text-xs text-red-500">{errors.customerEmail}</p>}
           </div>
@@ -141,7 +158,8 @@ export function CreateTicketTool() {
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+            disabled={tool.isBusy}
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -155,17 +173,17 @@ export function CreateTicketTool() {
             type="button"
             variant="outline"
             className="h-9 rounded-full px-4"
-            onClick={cancel}
-            disabled={isSubmitting}
+            onClick={() => tool.cancel()}
+            disabled={tool.isBusy}
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={tool.isBusy || createTicket.isPending}
             className="h-9 rounded-full px-6"
           >
-            {isSubmitting ? (
+            {tool.isBusy ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 Creating...

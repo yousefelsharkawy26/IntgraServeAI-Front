@@ -1,19 +1,19 @@
 // ============================================================
-// Select Product Tool (Mock)
+// Select Product Tool — Component
 // ============================================================
+// Uses the Tool SDK (useTool) to interact with the runtime.
 // Demonstrates that adding a new tool requires ONLY:
-//   1. Create this component
-//   2. Register it in the registry
+//   1. Create this component using useTool()
+//   2. Register it via definition.ts
 // No chat modifications needed.
 // ============================================================
 
 import { useState } from 'react'
-import { useToolContext } from '../ToolContext'
+import { useTool } from '../sdk'
 import { Button } from '@/components/ui/button'
 import { X, Check, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Mock product data — in a real app this would come from an API
 const MOCK_PRODUCTS = [
   { id: 'prod-1', name: 'Enterprise Plan', price: 299, description: 'Full-featured enterprise solution' },
   { id: 'prod-2', name: 'Professional Plan', price: 149, description: 'Advanced features for growing teams' },
@@ -22,16 +22,16 @@ const MOCK_PRODUCTS = [
 ]
 
 export function SelectProductTool() {
-  const { toolCallId, params, sendResult, cancel } = useToolContext()
+  const tool = useTool()
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const handleConfirm = () => {
     const product = MOCK_PRODUCTS.find((p) => p.id === selectedId)
     if (!product) return
 
-    // Send the selected product back through the tool runtime.
-    // The backend receives this and continues execution.
-    sendResult({
+    tool.log(`Product selected: ${product.name} (${product.id})`, 'info')
+
+    tool.complete({
       productId: product.id,
       productName: product.name,
       price: product.price,
@@ -41,17 +41,26 @@ export function SelectProductTool() {
   return (
     <div className="fixed left-1/2 top-[10%] z-50 w-full max-w-md -translate-x-1/2 rounded-xl border bg-card shadow-2xl">
       {/* Backdrop */}
-      <div className="fixed inset-0 z-[-1] bg-black/40" onClick={cancel} />
+      <div
+        className="fixed inset-0 z-[-1] bg-black/40"
+        onClick={() => !tool.isBusy && tool.cancel()}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-2">
           <Package className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Select Product</h2>
+          <div>
+            <h2 className="text-lg font-semibold">{tool.metadata.definition.label}</h2>
+            <p className="text-xs text-muted-foreground">
+              {tool.actionName}@{tool.version}
+            </p>
+          </div>
         </div>
         <button
-          onClick={cancel}
-          className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors"
+          onClick={() => tool.cancel()}
+          className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          disabled={tool.isBusy}
           aria-label="Cancel"
         >
           <X className="h-5 w-5" />
@@ -65,17 +74,20 @@ export function SelectProductTool() {
             key={product.id}
             type="button"
             onClick={() => setSelectedId(product.id)}
+            disabled={tool.isBusy}
             className={cn(
-              'w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-all',
+              'w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-all disabled:opacity-50',
               selectedId === product.id
                 ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
                 : 'border-border hover:bg-muted/50'
             )}
           >
-            <div className={cn(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-              selectedId === product.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
-            )}>
+            <div
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                selectedId === product.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
+              )}
+            >
               {selectedId === product.id ? (
                 <Check className="h-4 w-4" />
               ) : (
@@ -86,9 +98,7 @@ export function SelectProductTool() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{product.name}</span>
                 {product.price > 0 && (
-                  <span className="text-sm font-semibold text-primary">
-                    ${product.price}/mo
-                  </span>
+                  <span className="text-sm font-semibold text-primary">${product.price}/mo</span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">{product.description}</p>
@@ -103,14 +113,15 @@ export function SelectProductTool() {
           type="button"
           variant="outline"
           className="h-9 rounded-full px-4"
-          onClick={cancel}
+          onClick={() => tool.cancel()}
+          disabled={tool.isBusy}
         >
           Cancel
         </Button>
         <Button
           type="button"
           className="h-9 rounded-full px-6"
-          disabled={!selectedId}
+          disabled={!selectedId || tool.isBusy}
           onClick={handleConfirm}
         >
           <Check className="h-4 w-4 mr-1.5" />

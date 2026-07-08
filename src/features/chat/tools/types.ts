@@ -1,15 +1,28 @@
 // ============================================================
-// Human Tool Runtime — Type Definitions
-// ============================================================
-// These types define the generic contract between the chat
-// infrastructure and individual tool implementations.
-// The chat knows NOTHING about specific tools.
+// Human Tool Runtime — Core Type Definitions
 // ============================================================
 
-import type { ComponentType } from 'react'
+import type { ComponentType, LazyExoticComponent } from 'react'
 
 // -------------------------------------------------------
-// Tool Result — the ONLY thing a tool sends back
+// Tool Status — Complete lifecycle state machine
+// -------------------------------------------------------
+
+export type ToolStatus =
+  | 'pending'
+  | 'running'
+  | 'waiting_for_approval'
+  | 'waiting_for_user_input'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'timeout'
+  | 'retrying'
+
+export const TERMINAL_STATUSES: ToolStatus[] = ['completed', 'failed', 'cancelled', 'timeout']
+
+// -------------------------------------------------------
+// Tool Result — What tools send back to backend
 // -------------------------------------------------------
 
 export type ToolResultStatus = 'success' | 'cancelled' | 'failed'
@@ -18,56 +31,118 @@ export interface ToolResult {
   toolCallId: string
   status: ToolResultStatus
   payload?: unknown
+  reason?: string // e.g., 'unsupported_tool', 'validation_failed'
 }
 
 // -------------------------------------------------------
-// Active Tool — what the chat knows when a tool UI is open
+// Active Tool — What the runtime tracks
 // -------------------------------------------------------
 
 export interface ActiveTool {
   toolCallId: string
   actionName: string
+  version?: string // e.g., 'v1', 'v2'
   params: Record<string, unknown>
+  schema?: ToolSchema // Optional schema from backend
+  startedAt: number // Timestamp for timeout tracking
 }
 
 // -------------------------------------------------------
-// Tool Context — provided to every tool component
+// Tool Schema — For dynamic forms and validation
 // -------------------------------------------------------
 
-export interface ToolContextValue {
-  /** Server-provided identifier for this tool invocation */
-  toolCallId: string
-  /** The action name that resolved this tool (e.g. 'create_technical_ticket') */
-  actionName: string
-  /** Parameters passed by the backend for this tool invocation */
-  params: Record<string, unknown>
-  /** Current conversation ID (if available) */
-  conversationId: string | null
-  /** Send a successful result back to the backend */
-  sendResult: (payload?: unknown) => void
-  /** Cancel this tool invocation */
-  cancel: () => void
-  /** Report a failure */
-  fail: (error: string) => void
+export interface ToolSchema {
+  fields: SchemaField[]
+}
+
+export interface SchemaField {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object'
+  label?: string
+  description?: string
+  required?: boolean
+  default?: unknown
+  options?: string[] // For enum type
+  min?: number
+  max?: number
+  pattern?: string
+  items?: SchemaField // For array type
+  properties?: Record<string, SchemaField> // For object type
 }
 
 // -------------------------------------------------------
-// Tool Definition — what the registry stores
+// Tool Definition — What the registry stores
 // -------------------------------------------------------
 
 export interface HumanToolDefinition<TParams = Record<string, unknown>> {
   /** Unique type identifier (must match backend action_name) */
   type: string
-  /** Human-readable label for the tool */
+  
+  /** Semantic version (e.g., 'v1', 'v2', '1.0.0') */
+  version: string
+  
+  /** Human-readable label */
   label: string
-  /** The React component that renders the tool UI */
-  Component: ComponentType
-  /** Optional validation function for the tool parameters */
-  validate?: (params: TParams) => { valid: boolean; error?: string }
+  
+  /** Optional description for documentation */
+  description?: string
+  
+  /** The React component (can be lazy-loaded) */
+  Component: ComponentType | LazyExoticComponent<ComponentType>
+  
+  /** Optional JSON schema for validation */
+  schema?: ToolSchema
+  
+  /** Optional custom validator (overrides schema) */
+  validator?: ToolValidator<TParams>
+  
+  /** Required permissions (e.g., ['tickets:create']) */
+  permissions?: string[]
+  
+  /** Tool capabilities (e.g., ['progress', 'logging']) */
+  capabilities?: string[]
+  
+  /** Whether this tool supports resume after disconnect */
+  supportsResume?: boolean
+  
+  /** Experimental flag */
+  experimental?: boolean
+  
+  /** Default timeout in milliseconds */
+  timeoutMs?: number
 }
 
 // -------------------------------------------------------
-// Tool Registry — maps action names to definitions
+// Tool Validator — Custom validation logic
 // -------------------------------------------------------
 
-export type ToolRegistry = Record<string, HumanToolDefinition>
+export interface ValidationResult {
+  valid: boolean
+  errors?: ValidationError[]
+}
+
+export interface ValidationError {
+  field: string
+  message: string
+  code?: string
+}
+
+export type ToolValidator<TParams = Record<string, unknown>> = (
+  params: TParams,
+  payload?: unknown
+) => ValidationResult
+
+// -------------------------------------------------------
+// Tool Metadata — Runtime context for tools
+// -------------------------------------------------------
+
+export interface ToolMetadata {
+  definition: HumanToolDefinition
+  toolCallId: string
+  actionName: string
+  version: string
+  conversationId: string | null
+  executionId?: string
+  tenantId?: string
+  backendContext?: Record<string, unknown>
+}

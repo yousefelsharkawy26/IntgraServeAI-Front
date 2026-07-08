@@ -22,6 +22,7 @@ import { StatusBadge } from './ChatAvatar'
 import type { PendingFile, ChatMessage } from '../types'
 import '../chat.css'
 import { ToolRenderer } from '../tools'
+import type { ToolTransport } from '../tools'
 // ============================================================
 // Demo user - replace with your auth system
 // ============================================================
@@ -172,6 +173,23 @@ export default function ChatPage() {
     [storeMessages]
   )
 
+  // ---- Tool Transport — bridges the runtime to the WebSocket layer ----
+  const toolTransport = useMemo<ToolTransport>(
+    () => ({
+      sendResult: (toolCallId, status, payload, reason) => {
+        sendToolResult(toolCallId, status, payload)
+      },
+      // Optional: forward progress and log events to backend
+      sendProgress: (toolCallId, percent, message) => {
+        // Future: ws.send({ type: 'tool_progress', tool_call_id, percent, message })
+      },
+      sendLog: (toolCallId, message, level) => {
+        // Future: ws.send({ type: 'tool_log', tool_call_id, message, level })
+      },
+    }),
+    [sendToolResult]
+  )
+
   // ---- Render ----
   return (
     <ChatLayout
@@ -292,7 +310,7 @@ export default function ChatPage() {
       <ToolRenderer
         activeTool={activeTool}
         conversationId={conversationId}
-        onResult={sendToolResult}
+        transport={toolTransport}
       />
     </ChatLayout>
   )
