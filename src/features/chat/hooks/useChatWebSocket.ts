@@ -456,6 +456,52 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
           break
         }
 
+        // =====================================================
+        // { type: "restore_approval", action_name, tool_call_id, params }
+        // Sent after reconnect if there's a pending approval.
+        // Restores the approval card so the user can approve/decline.
+        // =====================================================
+        case 'restore_approval': {
+          diagnostics.info('lifecycle', 'Restoring approval state after reconnect', {
+            actionName: data.action_name,
+            toolCallId: data.tool_call_id,
+          })
+
+          if (data.tool_call_id) activeToolCallIdRef.current = data.tool_call_id
+
+          setPendingAction({
+            toolCallId: data.tool_call_id || 'unknown',
+            actionName: data.action_name || 'Action',
+            params: data.params || {},
+          })
+          setIsTyping(false)
+          break
+        }
+
+        // =====================================================
+        // { type: "restore_tool_input", action_name, tool_call_id, params }
+        // Sent after reconnect if there's a pending tool_input_required.
+        // Restores the tool UI so the user can complete the interaction.
+        // =====================================================
+        case 'restore_tool_input': {
+          diagnostics.info('lifecycle', 'Restoring tool input state after reconnect', {
+            actionName: data.action_name,
+            toolCallId: data.tool_call_id,
+          })
+
+          const restoreToolCallId = data.tool_call_id || activeToolCallIdRef.current || 'unknown'
+          if (data.tool_call_id) activeToolCallIdRef.current = data.tool_call_id
+
+          setActiveTool({
+            toolCallId: restoreToolCallId,
+            actionName: data.action_name || 'unknown',
+            params: data.params || {},
+            startedAt: Date.now(),
+          })
+          setIsTyping(false)
+          break
+        }
+
         case 'edit_successful': {
           break
         }
