@@ -21,7 +21,7 @@ import { ImagePreviewModal } from './ChatAttachmentCard'
 import { StatusBadge } from './ChatAvatar'
 import type { PendingFile, ChatMessage } from '../types'
 import '../chat.css'
-import { CreateTicketModal } from '@/features/tickets/components/CreateTicketModal'
+import { ToolRenderer } from '../tools'
 // ============================================================
 // Demo user - replace with your auth system
 // ============================================================
@@ -42,7 +42,6 @@ export default function ChatPage() {
   const previewImage = useChatStore((s) => s.previewImage)
   const connectionStatus = useChatStore((s) => s.connectionStatus)
   const config = useChatStore((s) => s.config)
-  const [isCreateTicketModalOpen, setIsCreateTicketModalOpen] = useState(false)
 
   const toggleSidebar = useChatStore((s) => s.toggleSidebar)
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
@@ -66,18 +65,19 @@ export default function ChatPage() {
     connectionStatus: wsStatus,
     isTyping: wsIsTyping,
     pendingAction: wsPendingAction,
+    activeTool,
+    conversationId,
     connect,
     disconnect,
     sendMessage: wsSendMessage,
     editMessage: wsEditMessage,
     removeMessage: wsRemoveMessage,
     confirmAction: wsConfirmAction,
-    completeToolCall,
+    sendToolResult,
     stopGeneration,
   } = useChatWebSocket({
     customerEmail: DEMO_USER.email,
     customerName: DEMO_USER.name,
-    setIsCreateTicketModalOpen,
   })
 
   // ---- Sync WebSocket state to store ----
@@ -288,20 +288,11 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      <CreateTicketModal
-        open={isCreateTicketModalOpen}
-        onTicketCreated={() => {
-          // Ticket was successfully created via REST API — transition the
-          // associated tool to 'completed' so the UI reflects the terminal state.
-          completeToolCall('completed', 'Ticket created successfully')
-        }}
-        onClose={() => {
-          // Modal is closing. If the tool is still running (i.e. the user
-          // cancelled without submitting), transition it to 'cancelled'.
-          // completeToolCall is a no-op if the tool already reached a terminal state.
-          completeToolCall('cancelled', 'Cancelled by user')
-          setIsCreateTicketModalOpen(false)
-        }}
+      {/* Generic Tool Renderer — renders any registered tool */}
+      <ToolRenderer
+        activeTool={activeTool}
+        conversationId={conversationId}
+        onResult={sendToolResult}
       />
     </ChatLayout>
   )

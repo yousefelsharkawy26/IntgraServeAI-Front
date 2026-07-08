@@ -1,23 +1,26 @@
 // ============================================================
-// Enhanced Chat WebSocket Hook
-// Preserves all original business logic with improved state management.
+// Chat WebSocket Hook — Generic Human Tool Runtime
+// ============================================================
+// This hook manages the WebSocket connection and all chat state.
+// It is GENERIC — it knows nothing about specific tools.
 //
-// Key performance improvement: streaming tokens are buffered and
-// flushed to React state at most once per animation frame, instead
-// of triggering a setMessages(...) call on every single token.
-// For a 2000-token response this collapses ~2000 renders down to
-// ~120 (one per frame at 60fps), and avoids the O(n²) cost of
-// array.map() + string concatenation per token.
+// Tool lifecycle is owned by the backend:
+//   tool_start → pause → confirm → show_tool_ui → tool_result → tool_end
+//
+// The frontend only:
+//   1. Renders tool UIs from the registry
+//   2. Sends tool_result back to the backend
+//   3. Updates UI state based on backend events
 // ============================================================
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { WS_API_BASE_URL, API_ENDPOINTS } from '@/constants/api'
 import type { ChatMessage, PendingAction, ToolCallInfo, ToolStatus } from '../types'
+import type { ActiveTool, ToolResultStatus } from '../tools/types'
 
 export interface ChatWebSocketOptions {
   customerEmail: string
   customerName: string
-  setIsCreateTicketModalOpen: (isOpen: boolean) => void
 }
 
 export interface UseChatWebSocketReturn {
@@ -26,6 +29,10 @@ export interface UseChatWebSocketReturn {
   isTyping: boolean
   pendingAction: PendingAction | null
   toolCalls: ToolCallInfo[]
+  /** The currently active human-interactive tool (null when no tool UI is open) */
+  activeTool: ActiveTool | null
+  /** Current conversation ID */
+  conversationId: string | null
   connect: () => void
   disconnect: () => void
   sendMessage: (content: string) => void
@@ -33,8 +40,12 @@ export interface UseChatWebSocketReturn {
   editMessage: (messageId: string, newContent: string) => void
   removeMessage: (messageId: string) => void
   confirmAction: (approved: boolean) => void
-  /** Transition the currently active tool (or a specific one) to a terminal state. */
-  completeToolCall: (status?: ToolStatus, output?: string) => void
+  /**
+   * Send a tool result back to the backend.
+   * This is the ONLY way the frontend communicates tool outcomes.
+   * The backend then resumes execution and eventually sends tool_end.
+   */
+  sendToolResult: (toolCallId: string, status: ToolResultStatus, payload?: unknown) => void
   clearMessages: () => void
   stopGeneration: () => void
 }
@@ -60,13 +71,14 @@ function getOrCreateSessionId(): string {
 // Hook
 // -------------------------------------------------------
 
-export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicketModalOpen }: ChatWebSocketOptions): UseChatWebSocketReturn {
+export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketOptions): UseChatWebSocketReturn {
   // ---- State ----
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
   const [isTyping, setIsTyping] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [toolCalls, setToolCalls] = useState<ToolCallInfo[]>([])
+  const [activeTool, setActiveTool] = useState<ActiveTool | null>(null)
 
   // ---- Refs ----
   const wsRef = useRef<WebSocket | null>(null)
@@ -74,31 +86,17 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
   const conversationIdRef = useRef<string | null>(null)
   const aiMsgIdRef = useRef<string | null>(null)
   const aiBufferRef = useRef('')
-  // rAF-batching refs — accumulate tokens between frames, flush once per frame.
   const rafPendingRef = useRef(false)
   const pendingTokensRef = useRef<string>('')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
   const currentToolCallRef = useRef<ToolCallInfo | null>(null)
-  // Tracks server-provided tool_call_id → local tool ID mapping so that
-  // duplicate 'tool_start' events (or a 'tool_start' that arrives after
-  // 'show_ticket_dialogue') update the existing tool call instead of
-  // creating a phantom second execution.
   const serverToolIdMapRef = useRef<Map<string, string>>(new Map())
-  // Guard against sending the 'confirm' message more than once for the
-  // same approval. Even though the UI disables the button after the first
-  // click, this ref provides a belt-and-suspenders guarantee at the
-  // transport layer.
   const confirmSentRef = useRef(false)
-  // Tracks the server tool_call_id of the currently active tool invocation
-  // (the one associated with the open modal or in-flight execution).
-  // Used by completeToolCall() to find which tool to finalize.
   const activeToolCallIdRef = useRef<string | null>(null)
 
   // -------------------------------------------------------
-  // rAF-batched flush of streaming tokens to React state.
-  // Multiple tokens arriving in the same frame are coalesced into
-  // a single setMessages call and a single string concatenation.
+  // rAF-batched flush of streaming tokens
   // -------------------------------------------------------
   const flushStreamingTokens = useCallback(() => {
     rafPendingRef.current = false
@@ -106,19 +104,13 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     pendingTokensRef.current = ''
     if (!chunk || !aiMsgIdRef.current) return
 
-    // Accumulate into the persistent buffer (still O(n) total length,
-    // but we only do it once per frame instead of once per token).
     aiBufferRef.current += chunk
 
-    // Structural update: only the streaming message changes — everything
-    // else in the array is referentially unchanged, so memoized children
-    // (MessageRenderer / AIMessage / ChatMarkdown) skip re-rendering.
     setMessages((prev) => {
       const next = prev.slice()
       const idx = next.findIndex((m) => m.id === aiMsgIdRef.current)
       if (idx === -1) return prev
       const cur = next[idx]
-      // Only allocate a new object for the streaming message.
       next[idx] = { ...cur, content: aiBufferRef.current, isStreaming: true }
       return next
     })
@@ -127,15 +119,42 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
   const scheduleFlush = useCallback(() => {
     if (rafPendingRef.current) return
     rafPendingRef.current = true
-    // requestAnimationFrame fires ~16ms (60fps); if the browser is
-    // backgrounded, rAF is throttled which naturally reduces work.
     if (typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(flushStreamingTokens)
     } else {
-      // SSR/old-browser fallback: flush on a short timer.
       setTimeout(flushStreamingTokens, 16)
     }
   }, [flushStreamingTokens])
+
+  // -------------------------------------------------------
+  // Internal: transition a tool to a terminal state.
+  // Used only by the 'done' safety net. NOT exposed publicly.
+  // The frontend never invents terminal states — only the backend does.
+  // -------------------------------------------------------
+  const finalizeRunningTools = useCallback(() => {
+    const now = new Date().toISOString()
+    setToolCalls((prev) => {
+      if (!prev.some((t) => t.status === 'running' || t.status === 'waiting_for_approval' || t.status === 'waiting_for_user_input')) return prev
+      return prev.map((t) =>
+        t.status === 'running' || t.status === 'waiting_for_approval' || t.status === 'waiting_for_user_input'
+          ? { ...t, status: 'completed' as const, output: 'Completed', endTime: now }
+          : t
+      )
+    })
+    setMessages((prev) =>
+      prev.map((m) => {
+        const tool = m.toolCalls?.[0]
+        if (!tool || (tool.status !== 'running' && tool.status !== 'waiting_for_approval' && tool.status !== 'waiting_for_user_input')) return m
+        return {
+          ...m,
+          content: `${tool.name} completed`,
+          toolCalls: [{ ...tool, status: 'completed' as const, output: 'Completed', endTime: now }],
+        }
+      })
+    )
+    currentToolCallRef.current = null
+    activeToolCallIdRef.current = null
+  }, [])
 
   // ---- Connection ----
 
@@ -168,9 +187,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'token': {
-          // First token creates the AI message immediately (so the user sees
-          // the bubble appear with the cursor), then subsequent tokens are
-          // rAF-batched.
           if (!aiMsgIdRef.current) {
             const id = `ai-${generateId()}`
             aiMsgIdRef.current = id
@@ -192,9 +208,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         case 'tool_start': {
           const serverToolCallId: string | undefined = data.tool_call_id
 
-          // Deduplication: if the server already sent a tool_start for this
-          // tool_call_id, update the existing tool call in-place instead of
-          // creating a phantom second execution.
+          // Deduplication
           if (serverToolCallId && serverToolIdMapRef.current.has(serverToolCallId)) {
             const existingLocalId = serverToolIdMapRef.current.get(serverToolCallId)!
             setToolCalls((prev) => {
@@ -230,7 +244,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
             startTime: new Date().toISOString(),
           }
 
-          // Map server tool_call_id → local ID for future deduplication.
           if (serverToolCallId) {
             serverToolIdMapRef.current.set(serverToolCallId, localId)
             activeToolCallIdRef.current = serverToolCallId
@@ -249,9 +262,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'tool_end': {
-          // Determine which tool call to complete. Prefer the server's
-          // tool_call_id mapped through serverToolIdMapRef, falling back
-          // to currentToolCallRef for backwards compatibility.
           const endServerId: string | undefined = data.tool_call_id
           let targetLocalId: string | null = null
 
@@ -263,7 +273,9 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
 
           if (targetLocalId) {
             const completedToolRef = currentToolCallRef.current
-            const outputText = data.output || 'Completed'
+            // Respect the backend's status if provided, default to 'completed'
+            const backendStatus: ToolStatus = data.status || 'completed'
+            const outputText = data.output || (backendStatus === 'completed' ? 'Completed' : backendStatus)
             const endTime = new Date().toISOString()
             const displayName = data.name
 
@@ -272,7 +284,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
               if (!target) return prev
               const updatedTool: ToolCallInfo = {
                 ...target,
-                status: 'completed',
+                status: backendStatus,
                 output: outputText,
                 endTime,
               }
@@ -286,21 +298,26 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
                 if (m.id !== targetLocalId) return m
                 const tool = m.toolCalls?.[0]
                 const updatedTool: ToolCallInfo = tool
-                  ? { ...tool, status: 'completed', output: outputText, endTime }
-                  : { id: targetLocalId, name: displayName || 'Tool', status: 'completed', output: outputText, endTime }
+                  ? { ...tool, status: backendStatus, output: outputText, endTime }
+                  : { id: targetLocalId, name: displayName || 'Tool', status: backendStatus, output: outputText, endTime }
                 return {
                   ...m,
-                  content: `${displayName || updatedTool.name} completed`,
+                  content: `${displayName || updatedTool.name} ${backendStatus}`,
                   toolCalls: [updatedTool],
                 }
               })
             )
+
+            // If the tool that just ended was the active tool, close its UI.
+            if (endServerId && activeToolCallIdRef.current === endServerId) {
+              setActiveTool(null)
+              activeToolCallIdRef.current = null
+            }
           }
           break
         }
 
         case 'pause': {
-          // Force-flush any pending tokens before finalizing the streaming state.
           if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
           if (aiMsgIdRef.current) {
@@ -310,10 +327,8 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
               )
             )
           }
-          // Reset the confirm guard for this new approval cycle.
           confirmSentRef.current = false
 
-          // Transition the active tool to 'waiting_for_approval'.
           const pauseServerId: string | undefined = data.tool_call_id
           if (pauseServerId) activeToolCallIdRef.current = pauseServerId
           const pauseLocalId = pauseServerId
@@ -346,7 +361,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'done': {
-          // Force-flush any pending tokens so the final message shows everything.
           if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
           if (aiMsgIdRef.current) {
@@ -359,33 +373,10 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           aiMsgIdRef.current = null
           aiBufferRef.current = ''
 
-          // Finalize any tools that are still in 'running' state.
-          // This handles the case where the backend sends 'done' without
-          // sending 'tool_end' first (e.g. when the tool result was delivered
-          // out-of-band via REST API rather than the WebSocket channel).
-          const now = new Date().toISOString()
-          setToolCalls((prev) => {
-            const hasRunning = prev.some((t) => t.status === 'running')
-            if (!hasRunning) return prev
-            return prev.map((t) =>
-              t.status === 'running'
-                ? { ...t, status: 'completed' as const, output: 'Completed', endTime: now }
-                : t
-            )
-          })
-          setMessages((prev) =>
-            prev.map((m) => {
-              const tool = m.toolCalls?.[0]
-              if (!tool || tool.status !== 'running') return m
-              return {
-                ...m,
-                content: `${tool.name} completed`,
-                toolCalls: [{ ...tool, status: 'completed' as const, output: 'Completed', endTime: now }],
-              }
-            })
-          )
-          currentToolCallRef.current = null
-          activeToolCallIdRef.current = null
+          // Safety net: finalize any tools still in non-terminal states.
+          // This handles edge cases where the backend sends 'done' without
+          // 'tool_end' (e.g. backend doesn't support tool_result yet).
+          finalizeRunningTools()
           break
         }
 
@@ -397,8 +388,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
             content: data.message || 'An error occurred.',
             sender: 'system',
             timestamp: new Date().toISOString(),
-            // Mark system error messages so the UI can style them distinctly
-            // instead of fragile string matching.
             isError: true,
           } as ChatMessage])
           break
@@ -410,7 +399,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'edit_successful': {
-          // Edit was processed successfully
           break
         }
 
@@ -427,22 +415,48 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
           break
         }
 
-        case 'show_ticket_dialogue': {
-          // The user has already approved the action (via the 'pause' → 'confirm'
-          // flow). This event signals that the tool is now executing and the
-          // frontend should show the ticket-creation form.
-          //
-          // IMPORTANT: Do NOT call setPendingAction() here. The approval phase
-          // is over — setting pendingAction would cause a second Human Approval
-          // card to appear alongside the modal, which is the root cause of the
-          // duplicate-approval bug (proven by runtime simulation).
+        // -------------------------------------------------------
+        // GENERIC tool UI request.
+        // The backend sends this when a tool needs human interaction.
+        // The frontend looks up the tool component from the registry
+        // and renders it via <ToolRenderer>. No tool-specific logic here.
+        // -------------------------------------------------------
+        case 'show_ticket_dialogue':
+        case 'show_tool_ui':
+        case 'tool_input_required': {
           setIsTyping(false)
-          // Remember which tool is associated with this modal so that
-          // completeToolCall() can finalize it when the user submits or cancels.
-          if (data.tool_call_id) {
-            activeToolCallIdRef.current = data.tool_call_id
+
+          const serverId = data.tool_call_id
+          if (serverId) activeToolCallIdRef.current = serverId
+
+          // Transition the tool to 'waiting_for_user_input'
+          const uiLocalId = serverId
+            ? serverToolIdMapRef.current.get(serverId) ?? null
+            : currentToolCallRef.current?.id ?? null
+
+          if (uiLocalId) {
+            setToolCalls((prev) =>
+              prev.map((t) =>
+                t.id === uiLocalId ? { ...t, status: 'waiting_for_user_input' as const } : t
+              )
+            )
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== uiLocalId || !m.toolCalls?.length) return m
+                return {
+                  ...m,
+                  toolCalls: [{ ...m.toolCalls[0], status: 'waiting_for_user_input' as const }],
+                }
+              })
+            )
           }
-          setIsCreateTicketModalOpen(true)
+
+          // Set the active tool — ToolRenderer will look up the component.
+          setActiveTool({
+            toolCallId: data.tool_call_id || 'unknown',
+            actionName: data.action_name || 'unknown',
+            params: data.params || {},
+          })
           break
         }
       }
@@ -450,8 +464,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
 
     ws.onclose = () => {
       if (!mountedRef.current) return
-      // Flush any in-flight tokens so the user sees the final content
-      // even if the connection drops mid-stream.
       if (rafPendingRef.current) flushStreamingTokens()
       setConnectionStatus('disconnected')
       setIsTyping(false)
@@ -465,7 +477,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     ws.onerror = () => {
       ws.close()
     }
-  }, [customerEmail, customerName, scheduleFlush, flushStreamingTokens])
+  }, [customerEmail, customerName, scheduleFlush, flushStreamingTokens, finalizeRunningTools])
 
   // ---- Disconnect ----
 
@@ -483,8 +495,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     }
     if (rafPendingRef.current) {
       rafPendingRef.current = false
-      // Cancel any pending rAF by simply clearing the flag; the next flush
-      // will be a no-op since pendingTokensRef is also cleared below.
     }
     pendingTokensRef.current = ''
     setConnectionStatus('disconnected')
@@ -508,9 +518,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     setMessages((prev) => [...prev, userMsg])
     setIsTyping(true)
     setPendingAction(null)
-    // Reset the confirm guard for the new conversation turn.
-    // NOTE: Do NOT clear serverToolIdMapRef here — late-arriving 'tool_end'
-    // events from the previous turn still need the mapping to find their tool.
     confirmSentRef.current = false
 
     ws.send(JSON.stringify({ type: 'chat', content: content.trim() }))
@@ -523,7 +530,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     setIsTyping(true)
     setPendingAction(null)
-    // Reset the confirm guard for the new conversation turn.
     confirmSentRef.current = false
     ws.send(JSON.stringify({ type: 'generate', content: content.trim() }))
   }, [])
@@ -534,7 +540,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     ws.send(JSON.stringify({ type: 'stop' }))
-    // Flush any pending tokens so the stopped message shows its final state.
     if (rafPendingRef.current) flushStreamingTokens()
     setIsTyping(false)
   }, [flushStreamingTokens])
@@ -545,7 +550,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
-    // Optimistic update
     setMessages((prev) => prev.map((m) =>
       m.id === messageId ? { ...m, content: newContent, is_edited: true } : m
     ))
@@ -571,12 +575,6 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
-    // Guard: prevent sending the 'confirm' message more than once per
-    // approval cycle. Without this guard, a race between the UI
-    // unmounting the ChatPendingAction card and a rapid second click
-    // (or a re-render that re-fires the callback) could send two
-    // 'confirm' messages to the backend, causing it to execute the
-    // tool twice.
     if (confirmSentRef.current) return
     confirmSentRef.current = true
 
@@ -608,8 +606,17 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         )
       }
     } else {
-      // User declined — mark the tool as cancelled.
+      // User declined — send a tool_result with 'cancelled' status.
+      // The backend owns the lifecycle, so we just report the user's decision.
       const declineServerId = activeToolCallIdRef.current
+      if (declineServerId && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'tool_result',
+          tool_call_id: declineServerId,
+          status: 'cancelled',
+        }))
+      }
+      // Optimistically update the UI — the backend will confirm via tool_end.
       const declineLocalId = declineServerId
         ? serverToolIdMapRef.current.get(declineServerId) ?? null
         : currentToolCallRef.current?.id ?? null
@@ -636,78 +643,51 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     }
   }, [])
 
-  // ---- Complete Tool Call ----
-  // Transitions a tool from 'running' to a terminal state.
-  // Used when:
-  //   - The user submits the CreateTicketModal (→ 'completed')
-  //   - The user cancels the modal (→ 'cancelled')
-  //   - The 'done' event arrives with tools still running (→ 'completed')
-  //   - A timeout occurs (→ 'timeout')
-  // This closes the gap where the backend never sends 'tool_end' because
-  // the ticket was created via REST API, not via the WebSocket channel.
+  // ---- Send Tool Result ----
+  // This is the GENERIC way for tools to report their outcome.
+  // The frontend sends tool_result to the backend.
+  // The backend resumes execution and eventually sends tool_end.
+  // The frontend NEVER invents a terminal status.
 
-  const completeToolCall = useCallback((status: ToolStatus = 'completed', output?: string) => {
-    // Resolve which tool to finalize.
-    const serverId = activeToolCallIdRef.current
-    let targetLocalId: string | null = null
+  const sendToolResult = useCallback((toolCallId: string, status: ToolResultStatus, payload?: unknown) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
 
-    if (serverId && serverToolIdMapRef.current.has(serverId)) {
-      targetLocalId = serverToolIdMapRef.current.get(serverId)!
-    } else if (currentToolCallRef.current) {
-      targetLocalId = currentToolCallRef.current.id
+    // Send the result to the backend.
+    ws.send(JSON.stringify({
+      type: 'tool_result',
+      tool_call_id: toolCallId,
+      status,
+      payload: payload ?? null,
+    }))
+
+    // Close the tool UI.
+    setActiveTool(null)
+
+    // Transition the tool to 'running' (backend is processing the result).
+    // The backend will send tool_end when it's done.
+    const localId = serverToolIdMapRef.current.get(toolCallId) ?? null
+    if (localId) {
+      setToolCalls((prev) =>
+        prev.map((t) =>
+          t.id === localId ? { ...t, status: 'running' as const } : t
+        )
+      )
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== localId || !m.toolCalls?.length) return m
+          return {
+            ...m,
+            content: `Running ${m.toolCalls[0].name}...`,
+            toolCalls: [{ ...m.toolCalls[0], status: 'running' as const }],
+          }
+        })
+      )
     }
 
-    if (!targetLocalId) return
-
-    const endTime = new Date().toISOString()
-    const outputText = output || (status === 'completed' ? 'Completed' : status)
-    const completedToolRef = currentToolCallRef.current
-
-    setToolCalls((prev) => {
-      const target = prev.find((t) => t.id === targetLocalId)
-      if (!target || target.status !== 'running') return prev // Already terminal
-      const updatedTool: ToolCallInfo = {
-        ...target,
-        status,
-        output: outputText,
-        endTime,
-      }
-      if (completedToolRef?.id === targetLocalId) {
-        currentToolCallRef.current = null
-      }
-      return prev.map((t) => (t.id === targetLocalId ? updatedTool : t))
-    })
-
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== targetLocalId) return m
-        const tool = m.toolCalls?.[0]
-        if (!tool || tool.status !== 'running') return m // Already terminal
-        const updatedTool: ToolCallInfo = {
-          ...tool,
-          status,
-          output: outputText,
-          endTime,
-        }
-        return {
-          ...m,
-          content: `${updatedTool.name} ${status}`,
-          toolCalls: [updatedTool],
-        }
-      })
-    )
-
-    // Clear the active tool ref so subsequent calls are no-ops.
-    activeToolCallIdRef.current = null
-
-    // Notify the backend so it can update its own state (best-effort).
-    const ws = wsRef.current
-    if (ws && ws.readyState === WebSocket.OPEN && serverId) {
-      ws.send(JSON.stringify({
-        type: 'tool_complete',
-        tool_call_id: serverId,
-        status,
-      }))
+    // Clear the active tool ref.
+    if (activeToolCallIdRef.current === toolCallId) {
+      activeToolCallIdRef.current = null
     }
   }, [])
 
@@ -716,6 +696,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
   const clearMessages = useCallback(() => {
     setMessages([])
     setToolCalls([])
+    setActiveTool(null)
     aiMsgIdRef.current = null
     aiBufferRef.current = ''
     pendingTokensRef.current = ''
@@ -742,6 +723,8 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     isTyping,
     pendingAction,
     toolCalls,
+    activeTool,
+    conversationId: conversationIdRef.current,
     connect,
     disconnect,
     sendMessage,
@@ -749,7 +732,7 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     editMessage,
     removeMessage,
     confirmAction,
-    completeToolCall,
+    sendToolResult,
     clearMessages,
     stopGeneration,
   }
