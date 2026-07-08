@@ -78,6 +78,16 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
   const currentToolCallRef = useRef<ToolCallInfo | null>(null)
+  // Tracks server-provided tool_call_id → local tool ID mapping so that
+  // duplicate 'tool_start' events (or a 'tool_start' that arrives after
+  // 'show_ticket_dialogue') update the existing tool call instead of
+  // creating a phantom second execution.
+  const serverToolIdMapRef = useRef<Map<string, string>>(new Map())
+  // Guard against sending the 'confirm' message more than once for the
+  // same approval. Even though the UI disables the button after the first
+  // click, this ref provides a belt-and-suspenders guarantee at the
+  // transport layer.
+  const confirmSentRef = useRef(false)
 
   // -------------------------------------------------------
   // rAF-batched flush of streaming tokens to React state.
@@ -174,13 +184,50 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'tool_start': {
+          const serverToolCallId: string | undefined = data.tool_call_id
+
+          // Deduplication: if the server already sent a tool_start for this
+          // tool_call_id, update the existing tool call in-place instead of
+          // creating a phantom second execution.
+          if (serverToolCallId && serverToolIdMapRef.current.has(serverToolCallId)) {
+            const existingLocalId = serverToolIdMapRef.current.get(serverToolCallId)!
+            setToolCalls((prev) => {
+              const updated = prev.map((t) =>
+                t.id === existingLocalId
+                  ? { ...t, status: 'running' as const, name: data.name || t.name, input: data.input || t.input }
+                  : t
+              )
+              const found = updated.find((t) => t.id === existingLocalId)
+              if (found) currentToolCallRef.current = found
+              return updated
+            })
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== existingLocalId || !m.toolCalls?.length) return m
+                return {
+                  ...m,
+                  content: `Running ${data.name || 'Tool'}...`,
+                  toolCalls: [{ ...m.toolCalls[0], status: 'running' as const, name: data.name || m.toolCalls[0].name, input: data.input || m.toolCalls[0].input }],
+                }
+              })
+            )
+            break
+          }
+
+          const localId = `tool-${generateId()}`
           const toolCall: ToolCallInfo = {
-            id: `tool-${generateId()}`,
+            id: localId,
             name: data.name || 'Tool',
             status: 'running',
             input: data.input || {},
             startTime: new Date().toISOString(),
           }
+
+          // Map server tool_call_id → local ID for future deduplication.
+          if (serverToolCallId) {
+            serverToolIdMapRef.current.set(serverToolCallId, localId)
+          }
+
           currentToolCallRef.current = toolCall
           setToolCalls((prev) => [...prev, toolCall])
           setMessages((prev) => [...prev, {
@@ -194,25 +241,52 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'tool_end': {
-          const completedTool = currentToolCallRef.current
-          if (completedTool) {
-            const updatedTool: ToolCallInfo = {
-              ...completedTool,
-              status: 'completed',
-              output: data.output || 'Completed',
-              endTime: new Date().toISOString(),
-            }
-            setToolCalls((prev) =>
-              prev.map((t) => t.id === completedTool.id ? updatedTool : t)
-            )
+          // Determine which tool call to complete. Prefer the server's
+          // tool_call_id mapped through serverToolIdMapRef, falling back
+          // to currentToolCallRef for backwards compatibility.
+          const endServerId: string | undefined = data.tool_call_id
+          let targetLocalId: string | null = null
+
+          if (endServerId && serverToolIdMapRef.current.has(endServerId)) {
+            targetLocalId = serverToolIdMapRef.current.get(endServerId)!
+          } else if (currentToolCallRef.current) {
+            targetLocalId = currentToolCallRef.current.id
+          }
+
+          if (targetLocalId) {
+            const completedToolRef = currentToolCallRef.current
+            const outputText = data.output || 'Completed'
+            const endTime = new Date().toISOString()
+            const displayName = data.name
+
+            setToolCalls((prev) => {
+              const target = prev.find((t) => t.id === targetLocalId)
+              if (!target) return prev
+              const updatedTool: ToolCallInfo = {
+                ...target,
+                status: 'completed',
+                output: outputText,
+                endTime,
+              }
+              if (completedToolRef?.id === targetLocalId) {
+                currentToolCallRef.current = null
+              }
+              return prev.map((t) => t.id === targetLocalId ? updatedTool : t)
+            })
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === completedTool.id
-                  ? { ...m, content: `${data.name} completed`, toolCalls: [updatedTool] }
-                  : m
-              )
+              prev.map((m) => {
+                if (m.id !== targetLocalId) return m
+                const tool = m.toolCalls?.[0]
+                const updatedTool: ToolCallInfo = tool
+                  ? { ...tool, status: 'completed', output: outputText, endTime }
+                  : { id: targetLocalId, name: displayName || 'Tool', status: 'completed', output: outputText, endTime }
+                return {
+                  ...m,
+                  content: `${displayName || updatedTool.name} completed`,
+                  toolCalls: [updatedTool],
+                }
+              })
             )
-            currentToolCallRef.current = null
           }
           break
         }
@@ -228,6 +302,8 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
               )
             )
           }
+          // Reset the confirm guard for this new approval cycle.
+          confirmSentRef.current = false
           setPendingAction({
             toolCallId: data.tool_call_id || 'unknown',
             actionName: data.action_name || 'Action',
@@ -291,13 +367,15 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
         }
 
         case 'show_ticket_dialogue': {
+          // The user has already approved the action (via the 'pause' → 'confirm'
+          // flow). This event signals that the tool is now executing and the
+          // frontend should show the ticket-creation form.
+          //
+          // IMPORTANT: Do NOT call setPendingAction() here. The approval phase
+          // is over — setting pendingAction would cause a second Human Approval
+          // card to appear alongside the modal, which is the root cause of the
+          // duplicate-approval bug (proven by runtime simulation).
           setIsTyping(false)
-          setPendingAction({
-            toolCallId: data.tool_call_id,
-            actionName: data.action_name,
-            params: data.params,
-          })
-
           setIsCreateTicketModalOpen(true)
           break
         }
@@ -364,6 +442,9 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     setMessages((prev) => [...prev, userMsg])
     setIsTyping(true)
     setPendingAction(null)
+    // Reset guards for the new conversation turn.
+    confirmSentRef.current = false
+    serverToolIdMapRef.current.clear()
 
     ws.send(JSON.stringify({ type: 'chat', content: content.trim() }))
   }, [])
@@ -375,6 +456,9 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     setIsTyping(true)
     setPendingAction(null)
+    // Reset guards for the new conversation turn.
+    confirmSentRef.current = false
+    serverToolIdMapRef.current.clear()
     ws.send(JSON.stringify({ type: 'generate', content: content.trim() }))
   }, [])
 
@@ -421,6 +505,15 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
+    // Guard: prevent sending the 'confirm' message more than once per
+    // approval cycle. Without this guard, a race between the UI
+    // unmounting the ChatPendingAction card and a rapid second click
+    // (or a re-render that re-fires the callback) could send two
+    // 'confirm' messages to the backend, causing it to execute the
+    // tool twice.
+    if (confirmSentRef.current) return
+    confirmSentRef.current = true
+
     ws.send(JSON.stringify({ type: 'confirm', approved }))
     setPendingAction(null)
     setIsTyping(true)
@@ -434,6 +527,9 @@ export function useChatWebSocket({ customerEmail, customerName, setIsCreateTicke
     aiBufferRef.current = ''
     pendingTokensRef.current = ''
     rafPendingRef.current = false
+    confirmSentRef.current = false
+    serverToolIdMapRef.current.clear()
+    currentToolCallRef.current = null
   }, [])
 
   // ---- Lifecycle ----
