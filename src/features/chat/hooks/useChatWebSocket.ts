@@ -1,36 +1,43 @@
 // ============================================================
-// Chat WebSocket Hook — Backend-Compatible Protocol
+// Chat WebSocket Hook — Protocol-Driven Human Tool Runtime
 // ============================================================
-// This hook is fully compatible with the IntegraServeAI-Backend
-// WebSocket protocol (apis/v1/chat.py + ai_engine/agent_runner.py).
+// This hook implements the generic Human Tool Runtime protocol.
+// The backend is the single source of truth for tool lifecycle.
 //
-// Backend protocol (source of truth):
-//   Client → Server: { session_id, customer_email, customer_name }
-//   Server → Client: { type: "connected", conversation_id }
+// Protocol (backend is source of truth):
 //
-//   Client → Server: { type: "chat"|"generate", content }
-//   Server → Client: { type: "token", content }
-//   Server → Client: { type: "tool_start", name, args }
-//   Server → Client: { type: "tool_end", name, result }
-//   Server → Client: { type: "tool_error", name, error }
-//   Server → Client: { type: "pause", action_name, params, tool_call_id }
-//   Server → Client: { type: "done" }
+//   Handshake:
+//     Client → Server: { session_id, customer_email, customer_name }
+//     Server → Client: { type: "connected", conversation_id }
 //
-//   Client → Server: { type: "confirm", approved }
-//   Server → Client: { type: "show_ticket_dialogue", action_name, params }
+//   Chat:
+//     Client → Server: { type: "chat"|"generate", content }
+//     Server → Client: { type: "token", content }
+//     Server → Client: { type: "tool_start", name, args }
+//     Server → Client: { type: "tool_end", name, result }
+//     Server → Client: { type: "tool_error", name, error }
+//     Server → Client: { type: "pause", action_name, params, tool_call_id }
+//     Server → Client: { type: "done" }
 //
-//   Client → Server: { type: "stop" }
-//   Server → Client: { type: "stopped" }
+//   Human Approval:
+//     Client → Server: { type: "confirm", approved }
+//     Server → Client: { type: "tool_input_required", action_name, tool_call_id, params }
 //
-//   Client → Server: { type: "edit", message_id, content }
-//   Server → Client: { type: "edit_successful" }
+//   Human Tool Result (GENERIC — replaces all tool-specific flows):
+//     Client → Server: { type: "tool_result", tool_call_id, result }
+//     (Backend resumes AI execution with the result as a ToolMessage)
 //
-//   Client → Server: { type: "end" }
-//   Server → Client: { type: "ended" }
+//   Control:
+//     Client → Server: { type: "stop" }
+//     Server → Client: { type: "stopped" }
+//     Client → Server: { type: "edit", message_id, content }
+//     Server → Client: { type: "edit_successful" }
+//     Client → Server: { type: "end" }
+//     Server → Client: { type: "ended" }
 //
-// IMPORTANT: The backend does NOT handle "tool_result" messages.
-// Ticket creation is handled entirely by the frontend via REST API
-// after receiving "show_ticket_dialogue".
+// IMPORTANT: The frontend NEVER decides a tool is completed.
+// Tool status only changes when the backend emits lifecycle events.
+// The only local states are: editing, loading, validating.
 // ============================================================
 
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -60,11 +67,14 @@ export interface UseChatWebSocketReturn {
   removeMessage: (messageId: string) => void
   confirmAction: (approved: boolean) => void
   /**
-   * Complete a tool locally (close UI, update state).
-   * Does NOT send anything to the backend — the backend does not
-   * handle tool_result messages. The backend protocol for ticket
-   * tools is: pause → confirm → show_ticket_dialogue → (frontend
-   * handles via REST API) → done.
+   * Send a tool result to the backend.
+   * This is the GENERIC way for tools to report their outcome.
+   * The backend receives the result, creates a ToolMessage,
+   * and resumes the AI execution. The backend will eventually
+   * emit tool_end or tool_error.
+   *
+   * The frontend NEVER marks a tool as completed locally.
+   * The backend is the single source of truth.
    */
   sendToolResult: (toolCallId: string, status: ToolResultStatus, payload?: unknown) => void
   clearMessages: () => void
@@ -113,8 +123,8 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   const mountedRef = useRef(true)
   const currentToolCallRef = useRef<ToolCallInfo | null>(null)
   const confirmSentRef = useRef(false)
-  // Tracks the tool_call_id from the 'pause' event (the only event that includes it).
-  // Used by 'show_ticket_dialogue' and 'sendToolResult' to identify the active tool.
+  // Tracks the tool_call_id from the 'pause' event.
+  // Used by 'tool_input_required' and 'sendToolResult'.
   const activeToolCallIdRef = useRef<string | null>(null)
 
   // -------------------------------------------------------
@@ -150,6 +160,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
   // -------------------------------------------------------
   // Internal: finalize running tools (safety net for 'done' event)
+  // Only used as a fallback when the backend doesn't send tool_end.
   // -------------------------------------------------------
   const finalizeRunningTools = useCallback(() => {
     const now = new Date().toISOString()
@@ -215,8 +226,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     ws.onopen = () => {
       if (!mountedRef.current) { ws.close(); return }
 
-      // Backend handshake: expects { session_id, customer_email, customer_name }
-      // Extra fields are ignored by the backend (harmless).
+      // Backend handshake: { session_id, customer_email, customer_name }
       ws.send(JSON.stringify({
         session_id: sessionIdRef.current,
         customer_email: customerEmail,
@@ -232,7 +242,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
       switch (data.type) {
         // =====================================================
-        // Backend: { type: "connected", conversation_id }
+        // { type: "connected", conversation_id }
         // =====================================================
         case 'connected': {
           setConnectionStatus('connected')
@@ -244,7 +254,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         // =====================================================
-        // Backend: { type: "token", content }
+        // { type: "token", content }
         // =====================================================
         case 'token': {
           if (!aiMsgIdRef.current) {
@@ -266,9 +276,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         // =====================================================
-        // Backend: { type: "tool_start", name, args }
-        // NOTE: Backend does NOT send tool_call_id here.
-        // NOTE: Backend sends "args" not "input".
+        // { type: "tool_start", name, args }
         // =====================================================
         case 'tool_start': {
           diagnostics.info('lifecycle', 'Tool started', {
@@ -298,19 +306,16 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         // =====================================================
-        // Backend: { type: "tool_end", name, result }
-        // NOTE: Backend does NOT send tool_call_id here.
-        // NOTE: Backend sends "result" not "output".
-        // NOTE: Backend does NOT send "status" — always success.
+        // { type: "tool_end", name, result }
+        // Backend is the source of truth — this is the ONLY way
+        // a tool reaches a terminal state.
         // =====================================================
         case 'tool_end': {
-          diagnostics.info('lifecycle', 'Tool ended', {
+          diagnostics.info('lifecycle', 'Tool ended (backend)', {
             actionName: data.name,
             result: data.result,
           })
 
-          // Backend doesn't send tool_call_id in tool_end.
-          // Use currentToolCallRef (set by tool_start) to find the tool.
           const completedTool = currentToolCallRef.current
           if (completedTool) {
             const outputText = data.result || 'Completed'
@@ -321,11 +326,10 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         // =====================================================
-        // Backend: { type: "tool_error", name, error }
-        // This is a SEPARATE event type from tool_end.
+        // { type: "tool_error", name, error }
         // =====================================================
         case 'tool_error': {
-          diagnostics.error('lifecycle', 'Tool error', {
+          diagnostics.error('lifecycle', 'Tool error (backend)', {
             actionName: data.name,
             error: data.error,
           })
@@ -339,8 +343,8 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         // =====================================================
-        // Backend: { type: "pause", reason, action_name, params, tool_call_id }
-        // This is the ONLY event that includes tool_call_id.
+        // { type: "pause", reason, action_name, params, tool_call_id }
+        // Human approval required. The ONLY event with tool_call_id.
         // =====================================================
         case 'pause': {
           if (rafPendingRef.current) flushStreamingTokens()
@@ -354,11 +358,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
           }
           confirmSentRef.current = false
 
-          // Store the tool_call_id from pause (the only event that has it)
           const pauseToolCallId: string | undefined = data.tool_call_id
           if (pauseToolCallId) activeToolCallIdRef.current = pauseToolCallId
 
-          // Transition the current tool to waiting_for_approval
           if (currentToolCallRef.current) {
             updateToolStatus(currentToolCallRef.current.id, 'waiting_for_approval')
           }
@@ -377,7 +379,40 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         }
 
         // =====================================================
-        // Backend: { type: "done" }
+        // { type: "tool_input_required", action_name, tool_call_id, params }
+        // GENERIC event: backend requests human input for ANY tool.
+        // Replaces the old tool-specific "show_ticket_dialogue".
+        // The frontend opens the tool UI, collects input, and sends
+        // tool_result back to the backend.
+        // =====================================================
+        case 'tool_input_required':
+        case 'show_ticket_dialogue': { // Backward compatibility alias
+          setIsTyping(false)
+
+          const inputToolCallId = data.tool_call_id || activeToolCallIdRef.current || 'unknown'
+
+          diagnostics.info('lifecycle', 'Tool input required', {
+            actionName: data.action_name,
+            toolCallId: inputToolCallId,
+          })
+
+          // Transition the tool to waiting_for_user_input
+          if (currentToolCallRef.current) {
+            updateToolStatus(currentToolCallRef.current.id, 'waiting_for_user_input')
+          }
+
+          // Set the active tool — ToolRenderer will look up the component
+          setActiveTool({
+            toolCallId: inputToolCallId,
+            actionName: data.action_name || 'unknown',
+            params: data.params || {},
+            startedAt: Date.now(),
+          })
+          break
+        }
+
+        // =====================================================
+        // { type: "done" }
         // =====================================================
         case 'done': {
           if (rafPendingRef.current) flushStreamingTokens()
@@ -393,12 +428,14 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
           aiBufferRef.current = ''
 
           // Safety net: finalize any tools still in non-terminal states.
+          // This should rarely trigger — the backend should always send
+          // tool_end before done.
           finalizeRunningTools()
           break
         }
 
         // =====================================================
-        // Backend: { type: "error", message }
+        // { type: "error", message }
         // =====================================================
         case 'error': {
           if (rafPendingRef.current) flushStreamingTokens()
@@ -414,24 +451,15 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
           break
         }
 
-        // =====================================================
-        // Backend: { type: "ended" }
-        // =====================================================
         case 'ended': {
           setConnectionStatus('disconnected')
           break
         }
 
-        // =====================================================
-        // Backend: { type: "edit_successful" }
-        // =====================================================
         case 'edit_successful': {
           break
         }
 
-        // =====================================================
-        // Backend: { type: "stopped" }
-        // =====================================================
         case 'stopped': {
           if (rafPendingRef.current) flushStreamingTokens()
           setIsTyping(false)
@@ -442,37 +470,6 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
               )
             )
           }
-          break
-        }
-
-        // =====================================================
-        // Backend: { type: "show_ticket_dialogue", action_name, params }
-        // NOTE: Backend does NOT send tool_call_id here.
-        // This is sent after the user approves a ticket creation action.
-        // The backend does NOT resume the AI stream after this — the
-        // frontend handles ticket creation via REST API independently.
-        // =====================================================
-        case 'show_ticket_dialogue': {
-          setIsTyping(false)
-
-          diagnostics.info('lifecycle', 'Ticket dialogue requested', {
-            actionName: data.action_name,
-          })
-
-          // Transition the current tool to waiting_for_user_input
-          if (currentToolCallRef.current) {
-            updateToolStatus(currentToolCallRef.current.id, 'waiting_for_user_input')
-          }
-
-          // Set the active tool — ToolRenderer will look up the component.
-          // Use activeToolCallIdRef (set during 'pause') as the tool_call_id
-          // since the backend doesn't send it in show_ticket_dialogue.
-          setActiveTool({
-            toolCallId: activeToolCallIdRef.current || 'unknown',
-            actionName: data.action_name || 'unknown',
-            params: data.params || {},
-            startedAt: Date.now(),
-          })
           break
         }
       }
@@ -520,7 +517,6 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   }, [])
 
   // ---- Send Message ----
-  // Backend expects: { type: "chat", content }
 
   const sendMessage = useCallback((content: string) => {
     if (!content.trim()) return
@@ -542,7 +538,6 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   }, [])
 
   // ---- Send Generate ----
-  // Backend expects: { type: "generate", content }
 
   const sendGenerate = useCallback((content: string) => {
     const ws = wsRef.current
@@ -554,7 +549,6 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   }, [])
 
   // ---- Stop Generation ----
-  // Backend expects: { type: "stop" }
 
   const stopGeneration = useCallback(() => {
     const ws = wsRef.current
@@ -565,7 +559,6 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   }, [flushStreamingTokens])
 
   // ---- Edit Message ----
-  // Backend expects: { type: "edit", message_id, content }
 
   const editMessage = useCallback((messageId: string, newContent: string) => {
     const ws = wsRef.current
@@ -591,15 +584,14 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   }, [])
 
   // ---- Confirm Action ----
-  // Backend expects: { type: "confirm", approved: true|false }
+  // Sends { type: "confirm", approved } to the backend.
   //
   // When approved:
-  //   - For ticket tools: backend sends show_ticket_dialogue, does NOT resume AI
-  //   - For other tools: backend executes the action and resumes AI stream
+  //   - For interactive tools: backend sends tool_input_required
+  //   - For non-interactive tools: backend executes and resumes AI
   //
   // When declined:
-  //   - Backend appends "Action aborted by user" ToolMessage and resumes AI
-  //   - Backend does NOT expect any additional message from frontend
+  //   - Backend appends "Action aborted" ToolMessage and resumes AI
 
   const confirmAction = useCallback((approved: boolean) => {
     const ws = wsRef.current
@@ -608,19 +600,20 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     if (confirmSentRef.current) return
     confirmSentRef.current = true
 
-    // Send the confirm message — this is the ONLY message the backend expects
     ws.send(JSON.stringify({ type: 'confirm', approved }))
     setPendingAction(null)
     setIsTyping(true)
 
     if (approved) {
-      // Transition the tool back to 'running' — the backend will execute it
+      // Tool transitions back to 'running' — backend will either:
+      // 1. Execute it immediately (non-interactive) → tool_end
+      // 2. Request human input (interactive) → tool_input_required
       if (currentToolCallRef.current) {
         updateToolStatus(currentToolCallRef.current.id, 'running')
       }
     } else {
-      // User declined — the backend will resume AI with "Action aborted" message.
-      // Mark the tool as cancelled locally.
+      // User declined — backend resumes AI with "Action aborted".
+      // Mark tool as cancelled locally (backend will confirm via tool_end or done).
       if (currentToolCallRef.current) {
         updateToolStatus(currentToolCallRef.current.id, 'cancelled', 'Declined by user')
         currentToolCallRef.current = null
@@ -629,39 +622,58 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     }
   }, [updateToolStatus])
 
-  // ---- Send Tool Result (Local Only) ----
-  // The backend does NOT handle "tool_result" messages.
-  // This function only updates local state (closes tool UI, updates status).
-  // The backend protocol for ticket tools is:
-  //   pause → confirm(approved) → show_ticket_dialogue → (frontend REST API) → done
-  // No WebSocket message is sent back to the backend.
+  // ---- Send Tool Result ----
+  // GENERIC: sends { type: "tool_result", tool_call_id, result } to the backend.
+  // The backend receives the result, creates a ToolMessage, and resumes AI.
+  // The frontend does NOT mark the tool as completed — the backend will
+  // emit tool_end when execution is truly done.
+  //
+  // This replaces ALL tool-specific flows (ticket creation, product selection,
+  // calendar picking, etc.) with a single generic protocol.
 
-  const sendToolResult = useCallback((_toolCallId: string, status: ToolResultStatus, _payload?: unknown) => {
-    // Close the tool UI
+  const sendToolResult = useCallback((toolCallId: string, status: ToolResultStatus, payload?: unknown) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      diagnostics.error('transport', 'Cannot send tool_result: WebSocket not open', {
+        toolCallId,
+        status,
+      })
+      return
+    }
+
+    // Build the result payload based on status
+    let resultPayload: unknown
+    if (status === 'success') {
+      resultPayload = payload ?? {}
+    } else if (status === 'cancelled') {
+      resultPayload = { cancelled: true, reason: 'User cancelled' }
+    } else {
+      resultPayload = { error: (payload as any)?.error || 'Tool failed' }
+    }
+
+    // Send tool_result to the backend
+    ws.send(JSON.stringify({
+      type: 'tool_result',
+      tool_call_id: toolCallId,
+      result: resultPayload,
+    }))
+
+    diagnostics.info('transport', 'Tool result sent to backend', {
+      toolCallId,
+      status,
+      payload: resultPayload,
+    })
+
+    // Close the tool UI immediately
     setActiveTool(null)
 
-    // Map ToolResultStatus to ToolStatus
-    const toolStatusMap: Record<ToolResultStatus, ToolStatus> = {
-      success: 'completed',
-      cancelled: 'cancelled',
-      failed: 'failed',
-    }
-    const toolStatus = toolStatusMap[status] || 'completed'
-
-    // Update the tool status locally
+    // Transition tool to 'running' — the backend is now processing the result
+    // and will emit tool_end when done. The frontend does NOT mark it completed.
     if (currentToolCallRef.current) {
-      updateToolStatus(currentToolCallRef.current.id, toolStatus, status === 'success' ? 'Completed' : status)
-      if (toolStatus !== 'running') {
-        currentToolCallRef.current = null
-      }
+      updateToolStatus(currentToolCallRef.current.id, 'running', 'Processing result...')
     }
 
-    activeToolCallIdRef.current = null
-
-    diagnostics.info('lifecycle', 'Tool result (local only)', {
-      toolCallId: _toolCallId,
-      status,
-    })
+    setIsTyping(true)
   }, [updateToolStatus])
 
   // ---- Clear Messages ----

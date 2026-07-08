@@ -1,13 +1,21 @@
 // ============================================================
-// Create Ticket Tool — Component
+// Create Ticket Tool
 // ============================================================
-// Uses the Tool SDK (useTool) to interact with the runtime.
-// Knows NOTHING about the chat infrastructure.
+// Collects ticket details from the user and sends them to the
+// backend via the Tool SDK. The backend handles the actual
+// ticket creation and resumes the AI conversation.
+//
+// This tool knows NOTHING about:
+//   - WebSocket
+//   - REST API
+//   - Ticket service
+//   - Chat infrastructure
+//
+// It only uses the Tool SDK to report results.
 // ============================================================
 
 import { useState } from 'react'
 import { useTool } from '../sdk'
-import { useTicketMutations } from '@/features/tickets/hooks/useTickets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +24,6 @@ import { X, Loader2 } from 'lucide-react'
 
 export function CreateTicketTool() {
   const tool = useTool()
-  const { createTicket } = useTicketMutations()
 
   // Pre-fill from backend params if available
   const [subject, setSubject] = useState((tool.params.subject as string) || '')
@@ -41,38 +48,21 @@ export function CreateTicketTool() {
     if (!validate()) return
 
     tool.setBusy()
-    tool.log('Creating ticket...', 'info')
-    tool.progress(30, 'Submitting ticket...')
+    tool.log('Submitting ticket details to backend', 'info')
 
-    createTicket.mutate(
-      {
-        subject,
-        description,
-        priority: priority as 'low' | 'medium' | 'high' | 'urgent',
-        customerName,
-        customerEmail,
-      },
-      {
-        onSuccess: (newTicket) => {
-          tool.log(`Ticket created: #${newTicket.id}`, 'info')
-          tool.progress(100, 'Ticket created!')
-          // Use the SDK to send the result — validation happens automatically
-          tool.complete({
-            ticketId: newTicket.id,
-            subject,
-            priority,
-            customerName,
-            customerEmail,
-          })
-        },
-        onError: (err: unknown) => {
-          const message = err instanceof Error ? err.message : 'Failed to create ticket'
-          tool.log(`Ticket creation failed: ${message}`, 'error')
-          tool.setIdle()
-          tool.fail(message, 'api_error')
-        },
-      }
-    )
+    // Send the result to the backend via the SDK.
+    // The backend will:
+    //   1. Execute the ticket creation action
+    //   2. Resume the AI with the result
+    //   3. Emit tool_end when done
+    // The frontend does NOT call REST API or mark the tool as completed.
+    tool.complete({
+      subject,
+      description,
+      priority,
+      customerName,
+      customerEmail,
+    })
   }
 
   return (
@@ -180,13 +170,13 @@ export function CreateTicketTool() {
           </Button>
           <Button
             type="submit"
-            disabled={tool.isBusy || createTicket.isPending}
+            disabled={tool.isBusy}
             className="h-9 rounded-full px-6"
           >
             {tool.isBusy ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Creating...
+                Submitting...
               </>
             ) : (
               'Create Ticket'
