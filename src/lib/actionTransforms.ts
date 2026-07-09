@@ -228,8 +228,3 @@ export function actionToFormData(action: Action): ActionFormData {
     }
   }
 }
-
-// Used as a sane fallback if the form is rendered without an action prop.
-export function emptyFormValues(): ActionFormData {
-  return defaultFormValues
-}

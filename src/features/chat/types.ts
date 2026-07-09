@@ -39,6 +39,7 @@ export type ToolStatus =
   | 'failed'
   | 'cancelled'
   | 'timeout'
+  | 'retrying'
 
 export interface ToolCallInfo {
   id: string

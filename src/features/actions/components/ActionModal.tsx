@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -38,20 +38,16 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
     defaultValues: defaultFormValues,
   })
 
-  const [type, setType] = useState<ActionType>('api_request')
-  const watchedType = methods.watch('type')
+  // Single source of truth for which config section to show.
+  // Using watch directly avoids the one-frame delay of a separate useState + useEffect.
+  const watchedType = methods.watch('type') as ActionType
 
-  useEffect(() => {
-    if (watchedType) setType(watchedType)
-  }, [watchedType])
-
+  // Reset form when the action prop changes (create vs. edit)
   useEffect(() => {
     if (action) {
       methods.reset(actionToFormData(action))
-      setType(action.type)
     } else {
       methods.reset(defaultFormValues)
-      setType('api_request')
     }
   }, [action, methods.reset])
 
@@ -61,6 +57,10 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
     const payload = buildCreatePayload(data)
 
     if (action) {
+      // Preserve the current active status — the edit form doesn't include
+      // a toggle for it (that's controlled by the list's switch). Without
+      // this, editing an inactive action would always reactivate it.
+      payload.active = action.status === 'active'
       updateAction.mutate({ id: action.id, data: payload })
     } else {
       createAction.mutate(payload)
@@ -114,7 +114,7 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
 
                 {/* Dynamic config sections — switch on selected type */}
                 <AnimatePresence mode="wait">
-                  {type === 'api_request' && (
+                  {watchedType === 'api_request' && (
                     <motion.div
                       key="api"
                       variants={fieldVariants}
@@ -126,7 +126,7 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
                       <ApiConfigFields />
                     </motion.div>
                   )}
-                  {type === 'rpc_request' && (
+                  {watchedType === 'rpc_request' && (
                     <motion.div
                       key="rpc"
                       variants={fieldVariants}
@@ -138,7 +138,7 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
                       <RpcConfigFields />
                     </motion.div>
                   )}
-                  {type === 'internal' && (
+                  {watchedType === 'internal' && (
                     <motion.div
                       key="internal"
                       variants={fieldVariants}
@@ -150,7 +150,7 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
                       <InternalConfigFields />
                     </motion.div>
                   )}
-                  {type === 'vector_query' && (
+                  {watchedType === 'vector_query' && (
                     <motion.div
                       key="vector"
                       variants={fieldVariants}

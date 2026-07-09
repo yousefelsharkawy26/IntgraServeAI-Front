@@ -356,6 +356,13 @@ const TOOL_STATUS_CONFIG: Record<
     spin: false,
     label: 'Timed Out',
   },
+  retrying: {
+    icon: Loader2,
+    color: 'text-yellow-500',
+    bg: 'bg-yellow-50 dark:bg-yellow-950/20',
+    spin: true,
+    label: 'Retrying',
+  },
 }
 
 export const ToolExecutionCard = React.memo(function ToolExecutionCard({

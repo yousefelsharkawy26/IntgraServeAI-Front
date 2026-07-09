@@ -110,6 +110,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [toolCalls, setToolCalls] = useState<ToolCallInfo[]>([])
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
 
   // ---- Refs ----
   const wsRef = useRef<WebSocket | null>(null)
@@ -172,9 +173,9 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
   const finalizeRunningTools = useCallback(() => {
     const now = new Date().toISOString()
     const intendedStates = intendedTerminalStatesRef.current
+    const nonTerminal: ToolStatus[] = ['running', 'waiting_for_approval', 'waiting_for_user_input', 'retrying']
     
     setToolCalls((prev) => {
-      const nonTerminal: ToolStatus[] = ['running', 'waiting_for_approval', 'waiting_for_user_input']
       if (!prev.some((t) => nonTerminal.includes(t.status))) return prev
       
       return prev.map((t) => {
@@ -198,7 +199,6 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     setMessages((prev) =>
       prev.map((m) => {
         const tool = m.toolCalls?.[0]
-        const nonTerminal: ToolStatus[] = ['running', 'waiting_for_approval', 'waiting_for_user_input']
         if (!tool || !nonTerminal.includes(tool.status)) return m
         
         // Use intended state if this is the tool we're tracking
@@ -286,6 +286,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         case 'connected': {
           setConnectionStatus('connected')
           conversationIdRef.current = data.conversation_id
+          setConversationId(data.conversation_id)
           diagnostics.info('transport', 'Conversation established', {
             conversationId: data.conversation_id,
           })
@@ -556,34 +557,38 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
 
           if (data.tool_call_id) activeToolCallIdRef.current = data.tool_call_id
 
-          // Check if a ToolExecutionCard with this tool_call_id already exists
-          const existingToolCall = toolCalls.find(t => t.serverToolCallId === data.tool_call_id)
-          
-          if (!existingToolCall) {
-            // Create a synthetic ToolExecutionCard to restore visual context
-            const localId = `tool-${generateId()}`
-            const toolCall: ToolCallInfo = {
-              id: localId,
-              serverToolCallId: data.tool_call_id,
-              name: data.action_name || 'Tool',
-              status: 'waiting_for_approval',
-              input: data.params || {},
-              startTime: new Date().toISOString(),
-            }
+          // Use a functional update to read current toolCalls state,
+          // avoiding stale closure over the toolCalls variable.
+          setToolCalls((currentToolCalls) => {
+            const existingToolCall = currentToolCalls.find(t => t.serverToolCallId === data.tool_call_id)
+            
+            if (!existingToolCall) {
+              const localId = `tool-${generateId()}`
+              const toolCall: ToolCallInfo = {
+                id: localId,
+                serverToolCallId: data.tool_call_id,
+                name: data.action_name || 'Tool',
+                status: 'waiting_for_approval',
+                input: data.params || {},
+                startTime: new Date().toISOString(),
+              }
 
-            currentToolCallRef.current = toolCall
-            setToolCalls((prev) => [...prev, toolCall])
-            setMessages((prev) => [...prev, {
-              id: localId,
-              content: `Waiting for approval: ${toolCall.name}`,
-              sender: 'system',
-              timestamp: new Date().toISOString(),
-              toolCalls: [toolCall],
-            }])
-          } else {
-            // Tool already exists, just update the ref
-            currentToolCallRef.current = existingToolCall
-          }
+              currentToolCallRef.current = toolCall
+
+              setMessages((prev) => [...prev, {
+                id: localId,
+                content: `Waiting for approval: ${toolCall.name}`,
+                sender: 'system',
+                timestamp: new Date().toISOString(),
+                toolCalls: [toolCall],
+              }])
+
+              return [...currentToolCalls, toolCall]
+            } else {
+              currentToolCallRef.current = existingToolCall
+              return currentToolCalls
+            }
+          })
 
           setPendingAction({
             toolCallId: data.tool_call_id || 'unknown',
@@ -608,34 +613,38 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
           const restoreToolCallId = data.tool_call_id || activeToolCallIdRef.current || 'unknown'
           if (data.tool_call_id) activeToolCallIdRef.current = data.tool_call_id
 
-          // Check if a ToolExecutionCard with this tool_call_id already exists
-          const existingToolCall = toolCalls.find(t => t.serverToolCallId === data.tool_call_id)
-          
-          if (!existingToolCall) {
-            // Create a synthetic ToolExecutionCard to restore visual context
-            const localId = `tool-${generateId()}`
-            const toolCall: ToolCallInfo = {
-              id: localId,
-              serverToolCallId: data.tool_call_id,
-              name: data.action_name || 'Tool',
-              status: 'waiting_for_user_input',
-              input: data.params || {},
-              startTime: new Date().toISOString(),
-            }
+          // Use a functional update to read current toolCalls state,
+          // avoiding stale closure over the toolCalls variable.
+          setToolCalls((currentToolCalls) => {
+            const existingToolCall = currentToolCalls.find(t => t.serverToolCallId === data.tool_call_id)
+            
+            if (!existingToolCall) {
+              const localId = `tool-${generateId()}`
+              const toolCall: ToolCallInfo = {
+                id: localId,
+                serverToolCallId: data.tool_call_id,
+                name: data.action_name || 'Tool',
+                status: 'waiting_for_user_input',
+                input: data.params || {},
+                startTime: new Date().toISOString(),
+              }
 
-            currentToolCallRef.current = toolCall
-            setToolCalls((prev) => [...prev, toolCall])
-            setMessages((prev) => [...prev, {
-              id: localId,
-              content: `Waiting for user input: ${toolCall.name}`,
-              sender: 'system',
-              timestamp: new Date().toISOString(),
-              toolCalls: [toolCall],
-            }])
-          } else {
-            // Tool already exists, just update the ref
-            currentToolCallRef.current = existingToolCall
-          }
+              currentToolCallRef.current = toolCall
+
+              setMessages((prev) => [...prev, {
+                id: localId,
+                content: `Waiting for user input: ${toolCall.name}`,
+                sender: 'system',
+                timestamp: new Date().toISOString(),
+                toolCalls: [toolCall],
+              }])
+
+              return [...currentToolCalls, toolCall]
+            } else {
+              currentToolCallRef.current = existingToolCall
+              return currentToolCalls
+            }
+          })
 
           setActiveTool({
             toolCallId: restoreToolCallId,
@@ -933,7 +942,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     pendingAction,
     toolCalls,
     activeTool,
-    conversationId: conversationIdRef.current,
+    conversationId,
     connect,
     disconnect,
     sendMessage,

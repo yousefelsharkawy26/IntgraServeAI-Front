@@ -1,6 +1,6 @@
 import api from './api'
 import { API_ENDPOINTS } from '@/constants/api'
-import { mapBackendActionToFrontend, mapFrontendActionToBackend } from '@/mappers/action.mapper'
+import { mapBackendActionToFrontend } from '@/mappers/action.mapper'
 import type { Action, CreateActionData, ActionFilters } from '@/types/action'
 
 export const actionService = {
@@ -22,14 +22,15 @@ export const actionService = {
   },
 
   async createAction(action: CreateActionData): Promise<Action> {
-    const backendData = mapFrontendActionToBackend(action)
-    const { data } = await api.post<any>(API_ENDPOINTS.actions.list, backendData)
+    // buildCreatePayload already transforms form data into the backend-aligned
+    // CreateActionData shape (snake_case, execution_config, etc.), so we send
+    // it directly — no second mapping pass needed.
+    const { data } = await api.post<any>(API_ENDPOINTS.actions.list, action)
     return mapBackendActionToFrontend(data)
   },
 
   async updateAction(id: string, action: Partial<CreateActionData>): Promise<Action> {
-    const backendData = mapFrontendActionToBackend(action)
-    const { data } = await api.patch<any>(API_ENDPOINTS.actions.detail(id), backendData)
+    const { data } = await api.patch<any>(API_ENDPOINTS.actions.detail(id), action)
     return mapBackendActionToFrontend(data)
   },
 
@@ -44,8 +45,7 @@ export const actionService = {
   },
 
   async validateAction(action: CreateActionData): Promise<{ valid: boolean; message?: string; warnings?: string[] }> {
-    const backendData = mapFrontendActionToBackend(action)
-    const { data } = await api.post<any>('/actions/validate', backendData)
+    const { data } = await api.post<any>('/actions/validate', action)
     return {
       valid: data.valid,
       message: data.message,

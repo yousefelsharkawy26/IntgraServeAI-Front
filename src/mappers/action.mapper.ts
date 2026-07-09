@@ -23,19 +23,16 @@ export const mapBackendActionToFrontend = (a: any): Action => {
   const resp = a.response_config || {}
 
   if (type === 'api_request') {
-    // Map headers: Dict[string, string] -> Array<{key, value}>
     const headers = exec.headers 
       ? Object.entries(exec.headers).map(([key, value]) => ({ key, value: String(value) }))
       : []
 
-    // Map parameters: Dict[string, ActionParameter] -> Array<{key, value, required}>
     const parameters = Object.entries(params).map(([key, paramVal]: [string, any]) => ({
       key,
       value: paramVal.default ? String(paramVal.default) : '',
       required: !!paramVal.required,
     }))
 
-    // Map response mapping: Dict[string, ResponseValue] -> Record[string, string]
     const mapping: Record<string, string> = {}
     if (resp.values) {
       Object.entries(resp.values).forEach(([k, valObj]: [string, any]) => {
@@ -65,86 +62,18 @@ export const mapBackendActionToFrontend = (a: any): Action => {
     }
   } else if (type === 'internal') {
     mapped.internalConfig = {
-      handler: exec.handler || 'defaultHandler',
+      handler: exec.handler || exec.connector || '',
+    }
+  } else if (type === 'vector_query') {
+    const embeddingConfig = exec.embedding_config || {}
+    mapped.vectorConfig = {
+      indexName: exec.collection_name || '',
+      embeddingModel: embeddingConfig.model || '',
+      topK: exec.max_results || 5,
+      threshold: exec.threshold || 0.7,
+      filter: exec.filter,
     }
   }
 
   return mapped
-}
-
-// Maps frontend CreateActionData to backend ActionCreate schema format
-export const mapFrontendActionToBackend = (a: any): any => {
-  const execution_config: any = {}
-  let parameters: Record<string, any> = {}
-  let response_config: any = null
-
-  if (a.type === 'api_request' && a.apiConfig) {
-    const api = a.apiConfig
-    
-    // Map headers array to dictionary
-    const headersDict: Record<string, string> = {}
-    if (api.headers) {
-      api.headers.forEach((h: any) => {
-        if (h.key) headersDict[h.key] = h.value || ''
-      })
-    }
-
-    execution_config.protocol = api.protocol
-    execution_config.url = api.url
-    execution_config.method = api.method
-    execution_config.headers = headersDict
-    execution_config.timeout = api.timeout
-
-    // Map parameters array to dictionary
-    if (api.parameters) {
-      api.parameters.forEach((p: any) => {
-        if (p.key) {
-          parameters[p.key] = {
-            type: 'string',
-            required: !!p.required,
-            param_type: 'query', // default query param
-            description: `Parameter ${p.key}`,
-            default: p.value || null,
-          }
-        }
-      })
-    }
-
-    // Map response config
-    const valuesDict: Record<string, any> = {}
-    if (api.responseConfig?.mapping) {
-      Object.entries(api.responseConfig.mapping).forEach(([key, pathVal]) => {
-        valuesDict[key] = {
-          type: 'string',
-          path: String(pathVal),
-        }
-      })
-    }
-
-    response_config = {
-      mode: 'json',
-      values: valuesDict,
-      template: 'Action executed successfully.',
-      on_error: 'Failed to execute action.',
-    }
-  } else if (a.type === 'rpc_request' && a.rpcConfig) {
-    const rpc = a.rpcConfig
-    execution_config.host = rpc.host
-    execution_config.service = rpc.service
-    execution_config.method = rpc.method
-    execution_config.proto_file = rpc.protoFile
-    execution_config.timeout = rpc.timeout
-    execution_config.protocol = 'grpc'
-  }
-
-  return {
-    name: a.name,
-    description: a.description,
-    type: a.type,
-    active: a.status === 'active' || a.active !== false,
-    requires_confirmation: !!a.requiresConfirmation,
-    execution_config,
-    parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
-    response_config: response_config || undefined,
-  }
 }
