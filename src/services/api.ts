@@ -11,7 +11,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 30000,
-  withCredentials: true, // Crucial: enables passing/receiving HTTP-only cookies cross-origin
+  withCredentials: true,
 })
 
 function subscribeTokenRefresh(callback: (token: string) => void) {
@@ -65,8 +65,6 @@ api.interceptors.response.use(
     isRefreshing = true
 
     try {
-      // Direct call to refresh endpoint. Axios automatically carries the refresh_token cookie
-      // when withCredentials is set to true.
       const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.auth.refresh}`, {}, {
         withCredentials: true,
       })
