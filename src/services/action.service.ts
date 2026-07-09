@@ -25,8 +25,18 @@ export const actionService = {
     // buildCreatePayload already transforms form data into the backend-aligned
     // CreateActionData shape (snake_case, execution_config, etc.), so we send
     // it directly — no second mapping pass needed.
-    const { data } = await api.post<any>(API_ENDPOINTS.actions.list, action)
-    return mapBackendActionToFrontend(data)
+    try {
+      const { data } = await api.post<any>(API_ENDPOINTS.actions.list, action)
+      return mapBackendActionToFrontend(data)
+    } catch (error: any) {
+      const errorData = error?.response?.data
+      console.error('[actionService] Create failed:', {
+        status: error?.response?.status,
+        errorData,
+        sentPayload: action,
+      })
+      throw error
+    }
   },
 
   async updateAction(id: string, action: Partial<CreateActionData>): Promise<Action> {
