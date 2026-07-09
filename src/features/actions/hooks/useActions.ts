@@ -4,6 +4,34 @@ import { useNotificationStore } from '@/store/notificationStore'
 import { QUERY_KEYS } from '@/constants/queryKeys'
 import type { ActionFilters, CreateActionData } from '@/types/action'
 
+/** Extract a human-readable error message from Axios error responses.
+ *  The backend returns errors in multiple formats:
+ *  - {"detail": {"error": "...", "message": "..."}}  (custom HTTPActionParsingException)
+ *  - {"errors": {"field": "message"}}               (Pydantic validation error)
+ *  - {"message": "..."}                              (generic)
+ */
+function extractErrorMessage(err: any): string {
+  const data = err?.response?.data
+  if (!data) return err?.message || 'An unexpected error occurred.'
+
+  // Custom action parsing exceptions: { detail: { error, message } }
+  if (data.detail?.message) return data.detail.message
+  if (data.detail?.error) return data.detail.error
+
+  // Pydantic validation errors: { errors: { field: message, ... } }
+  if (data.errors && typeof data.errors === 'object') {
+    const messages = Object.entries(data.errors)
+      .map(([field, msg]) => `${field}: ${msg}`)
+      .join('; ')
+    return messages
+  }
+
+  // Generic: { message: "..." }
+  if (data.message) return data.message
+
+  return 'Please try again.'
+}
+
 export function useActions(filters?: ActionFilters) {
   return useQuery({
     queryKey: [...QUERY_KEYS.actions, filters],
@@ -30,7 +58,7 @@ export function useActionMutations() {
       addToast({ type: 'success', title: 'Action created', message: `Action '${newAction.name}' created successfully.` })
     },
     onError: (err: any) => {
-      addToast({ type: 'error', title: 'Failed to create action', message: err?.response?.data?.message || 'Please try again.' })
+      addToast({ type: 'error', title: 'Failed to create action', message: extractErrorMessage(err) })
     },
   })
 
@@ -42,7 +70,7 @@ export function useActionMutations() {
       addToast({ type: 'success', title: 'Action updated', message: `Action '${updatedAction.name}' updated successfully.` })
     },
     onError: (err: any) => {
-      addToast({ type: 'error', title: 'Failed to update action', message: err?.response?.data?.message || 'Please try again.' })
+      addToast({ type: 'error', title: 'Failed to update action', message: extractErrorMessage(err) })
     },
   })
 
@@ -58,18 +86,18 @@ export function useActionMutations() {
       })
     },
     onError: (err: any) => {
-      addToast({ type: 'error', title: 'Failed to toggle status', message: err?.response?.data?.message || 'Please try again.' })
+      addToast({ type: 'error', title: 'Failed to toggle status', message: extractErrorMessage(err) })
     },
   })
 
   const deleteAction = useMutation({
-    mutationFn: (id: string) => actionService.deleteAction(id),
-    onSuccess: () => {
+    mutationFn: (id: string) => id,
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.actions })
       addToast({ type: 'success', title: 'Action deleted', message: 'Action removed successfully.' })
     },
     onError: (err: any) => {
-      addToast({ type: 'error', title: 'Failed to delete action', message: err?.response?.data?.message || 'Please try again.' })
+      addToast({ type: 'error', title: 'Failed to delete action', message: extractErrorMessage(err) })
     },
   })
 
