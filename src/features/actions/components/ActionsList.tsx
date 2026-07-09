@@ -152,6 +152,21 @@ export default function ActionsList() {
                         RPC: {action.rpcConfig.service}.{action.rpcConfig.method} @ {action.rpcConfig.host}
                       </div>
                     )}
+                    {action.vectorConfig && (
+                      <div className="mt-3 rounded-md bg-[var(--color-bg-base)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+                        Vector: {action.vectorConfig.connector} / {action.vectorConfig.collectionName}
+                      </div>
+                    )}
+                    {action.sqlConfig && (
+                      <div className="mt-3 rounded-md bg-[var(--color-bg-base)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+                        SQL: {action.sqlConfig.connector}
+                      </div>
+                    )}
+                    {action.knowledgeConfig && (
+                      <div className="mt-3 rounded-md bg-[var(--color-bg-base)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+                        Knowledge: {action.knowledgeConfig.connector} / {action.knowledgeConfig.collectionName}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>

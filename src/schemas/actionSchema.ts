@@ -1,30 +1,40 @@
 import { z } from 'zod'
+import { ACTION_TYPE_CONFIGS, type ActionType } from '@/types/action'
 
-// ── Per-type config BASE shapes (no required-field constraints) ──────────────
-// These describe the SHAPE only — no `.min(1)` etc. They're used in the main
-// actionSchema below so the form can hold defaults for ALL four configs
-// simultaneously (so users can switch types without losing their work) without
-// triggering validation errors on the inactive ones.
+// ── Shared sub-schemas ──────────────────────────────────────────────────────
+
+const responseValueEntrySchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  type: z.enum(['string', 'integer']),
+  path: z.string().min(1, 'Path is required'),
+})
+
+const formResponseConfigSchema = z.object({
+  mode: z.string(),
+  values: z.array(responseValueEntrySchema),
+  template: z.string(),
+  onError: z.string(),
+})
+
+const actionParameterSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  required: z.boolean(),
+  paramType: z.string(),
+  description: z.string(),
+  enumValues: z.string().optional(),
+})
+
+// ── Per-type config BASE shapes (loose — no .min(1)) ────────────────────────
 
 const apiConfigBaseSchema = z.object({
   protocol: z.enum(['http', 'https']),
   url: z.string(),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
-  parameters: z.array(z.object({
-    key: z.string(),
-    value: z.string(),
-    required: z.boolean(),
-    paramType: z.enum(['query', 'body', 'path']),
-    description: z.string(),
-  })),
+  parameters: z.array(actionParameterSchema),
   timeout: z.number(),
-  responseConfig: z.object({
-    path: z.string().optional(),
-    mapping: z.record(z.string(), z.any()).optional(),
-    template: z.string().optional(),
-    onError: z.string().optional(),
-  }),
+  responseConfig: formResponseConfigSchema,
 })
 
 const rpcConfigBaseSchema = z.object({
@@ -33,6 +43,8 @@ const rpcConfigBaseSchema = z.object({
   method: z.string(),
   protoFile: z.string(),
   timeout: z.number(),
+  parameters: z.array(actionParameterSchema),
+  responseConfig: formResponseConfigSchema,
 })
 
 const internalConfigBaseSchema = z.object({
@@ -40,17 +52,33 @@ const internalConfigBaseSchema = z.object({
 })
 
 const vectorConfigBaseSchema = z.object({
-  indexName: z.string(),
-  embeddingModel: z.string(),
-  topK: z.number(),
-  threshold: z.number(),
   connector: z.string(),
   connectionString: z.string(),
+  collectionName: z.string(),
+  maxResults: z.number(),
+  embeddingModel: z.string(),
   filter: z.record(z.string(), z.string()).optional(),
+  responseConfig: formResponseConfigSchema,
 })
 
-// ── Strict schemas (exported, used in superRefine) ───────────────────────────
-// These are the "real" schemas with `.min(1)` etc. applied via `.extend()`.
+const sqlConfigBaseSchema = z.object({
+  connector: z.string(),
+  connectionString: z.string(),
+  maxResults: z.number(),
+  parameters: z.array(actionParameterSchema),
+  responseConfig: formResponseConfigSchema,
+})
+
+const knowledgeConfigBaseSchema = z.object({
+  connector: z.string(),
+  connectionString: z.string(),
+  collectionName: z.string(),
+  maxResults: z.number(),
+  parameters: z.array(actionParameterSchema),
+  responseConfig: formResponseConfigSchema,
+})
+
+// ── Strict schemas (with .min(1) etc.) ──────────────────────────────────────
 
 export const apiConfigSchema = apiConfigBaseSchema.extend({
   url: z.string().min(1, 'URL is required'),
@@ -69,87 +97,89 @@ export const internalConfigSchema = internalConfigBaseSchema.extend({
 })
 
 export const vectorConfigSchema = vectorConfigBaseSchema.extend({
-  indexName: z.string().min(1, 'Index name is required'),
-  embeddingModel: z.string().min(1, 'Embedding model is required'),
-  topK: z.number().min(1).max(1000),
-  threshold: z.number().min(0).max(1),
   connector: z.string().min(1, 'Connector is required'),
   connectionString: z.string().min(1, 'Connection string is required'),
+  collectionName: z.string().min(1, 'Collection name is required'),
+  maxResults: z.number().min(1).max(1000),
+  embeddingModel: z.string().min(1, 'Embedding model is required'),
 })
 
-// ── Combined schema ──────────────────────────────────────────────────────────
-// Base object uses the LOOSE shapes (.optional) — so unused configs don't
-// trigger validation errors on empty defaults. superRefine then enforces the
-// STRICT schema on ONLY the config matching the selected `type`.
+export const sqlConfigSchema = sqlConfigBaseSchema.extend({
+  connector: z.string().min(1, 'Connector is required'),
+  connectionString: z.string().min(1, 'Connection string is required'),
+  maxResults: z.number().min(1).max(1000),
+})
+
+export const knowledgeConfigSchema = knowledgeConfigBaseSchema.extend({
+  connector: z.string().min(1, 'Connector is required'),
+  connectionString: z.string().min(1, 'Connection string is required'),
+  collectionName: z.string().min(1, 'Collection name is required'),
+  maxResults: z.number().min(1).max(1000),
+})
+
+// ── Combined schema with superRefine ─────────────────────────────────────────
+
+const configMap: Record<string, { schema: z.ZodTypeAny; field: string }> = {
+  api_request: { schema: apiConfigSchema, field: 'apiConfig' },
+  rpc_request: { schema: rpcConfigSchema, field: 'rpcConfig' },
+  internal: { schema: internalConfigSchema, field: 'internalConfig' },
+  vector_query: { schema: vectorConfigSchema, field: 'vectorConfig' },
+  sql_query: { schema: sqlConfigSchema, field: 'sqlConfig' },
+  knowledge_query: { schema: knowledgeConfigSchema, field: 'knowledgeConfig' },
+}
 
 export const actionSchema = z
   .object({
-    name: z.string().min(1, 'Name is required').regex(
-      /^[a-z][a-z0-9_]*$/,
-      'Name must be lowercase letters, digits, and underscores only (e.g., get_product_info)',
-    ),
+    name: z
+      .string()
+      .min(1, 'Name is required')
+      .regex(
+        /^[a-z][a-z0-9_]*$/,
+        'Must be lowercase letters, digits, underscores (e.g., get_product_info)',
+      ),
     description: z.string().min(1, 'Description is required'),
-    type: z.enum(['api_request', 'rpc_request', 'internal', 'vector_query']),
+    type: z.enum([
+      'api_request',
+      'rpc_request',
+      'internal',
+      'vector_query',
+      'sql_query',
+      'knowledge_query',
+    ] as const),
     requiresConfirmation: z.boolean(),
     apiConfig: apiConfigBaseSchema.optional(),
     rpcConfig: rpcConfigBaseSchema.optional(),
     internalConfig: internalConfigBaseSchema.optional(),
     vectorConfig: vectorConfigBaseSchema.optional(),
+    sqlConfig: sqlConfigBaseSchema.optional(),
+    knowledgeConfig: knowledgeConfigBaseSchema.optional(),
   })
   .superRefine((data, ctx) => {
-    switch (data.type) {
-      case 'api_request': {
-        const result = apiConfigSchema.safeParse(data.apiConfig)
-        if (!result.success) {
-          for (const issue of result.error.issues) {
-            ctx.addIssue({
-              ...issue,
-              path: ['apiConfig', ...(issue.path ?? [])],
-            })
-          }
-        }
-        break
-      }
-      case 'rpc_request': {
-        const result = rpcConfigSchema.safeParse(data.rpcConfig)
-        if (!result.success) {
-          for (const issue of result.error.issues) {
-            ctx.addIssue({
-              ...issue,
-              path: ['rpcConfig', ...(issue.path ?? [])],
-            })
-          }
-        }
-        break
-      }
-      case 'internal': {
-        const result = internalConfigSchema.safeParse(data.internalConfig)
-        if (!result.success) {
-          for (const issue of result.error.issues) {
-            ctx.addIssue({
-              ...issue,
-              path: ['internalConfig', ...(issue.path ?? [])],
-            })
-          }
-        }
-        break
-      }
-      case 'vector_query': {
-        const result = vectorConfigSchema.safeParse(data.vectorConfig)
-        if (!result.success) {
-          for (const issue of result.error.issues) {
-            ctx.addIssue({
-              ...issue,
-              path: ['vectorConfig', ...(issue.path ?? [])],
-            })
-          }
-        }
-        break
+    const entry = configMap[data.type as string]
+    if (!entry) return
+    const configData = (data as any)[entry.field]
+    if (!configData) return
+    const result = entry.schema.safeParse(configData)
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: [entry.field, ...(issue.path ?? [])],
+        })
       }
     }
   })
 
 export type ActionFormData = z.infer<typeof actionSchema>
+
+// ── Helper: default response config ──────────────────────────────────────────
+
+const defaultResponseConfig: FormResponseConfig = {
+  mode: 'json',
+  values: [],
+  template: '{{result}}',
+  onError: 'Action execution failed',
+}
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
 
@@ -158,9 +188,9 @@ export const defaultApiConfig = {
   url: '',
   method: 'POST' as const,
   headers: [] as { key: string; value: string }[],
-  parameters: [] as { key: string; value: string; required: boolean; paramType: 'query' | 'body' | 'path'; description: string }[],
+  parameters: [] as { key: string; value: string; required: boolean; paramType: string; description: string; enumValues?: string }[],
   timeout: 5000,
-  responseConfig: {},
+  responseConfig: { ...defaultResponseConfig },
 }
 
 export const defaultRpcConfig = {
@@ -169,18 +199,37 @@ export const defaultRpcConfig = {
   method: '',
   protoFile: '',
   timeout: 3000,
+  parameters: [] as { key: string; value: string; required: boolean; paramType: string; description: string; enumValues?: string }[],
+  responseConfig: { ...defaultResponseConfig },
 }
 
 export const defaultInternalConfig = { handler: '' }
 
 export const defaultVectorConfig = {
-  indexName: '',
-  embeddingModel: '',
-  topK: 5,
-  threshold: 0.7,
   connector: '',
   connectionString: '',
+  collectionName: '',
+  maxResults: 5,
+  embeddingModel: '',
   filter: undefined as Record<string, string> | undefined,
+  responseConfig: { ...defaultResponseConfig, mode: 'json' },
+}
+
+export const defaultSqlConfig = {
+  connector: '',
+  connectionString: '',
+  maxResults: 100,
+  parameters: [] as { key: string; value: string; required: boolean; paramType: string; description: string; enumValues?: string }[],
+  responseConfig: { ...defaultResponseConfig, mode: 'raw' },
+}
+
+export const defaultKnowledgeConfig = {
+  connector: '',
+  connectionString: '',
+  collectionName: '',
+  maxResults: 10,
+  parameters: [] as { key: string; value: string; required: boolean; paramType: string; description: string; enumValues?: string }[],
+  responseConfig: { ...defaultResponseConfig, mode: 'raw' },
 }
 
 export const defaultFormValues: ActionFormData = {
@@ -192,4 +241,9 @@ export const defaultFormValues: ActionFormData = {
   rpcConfig: defaultRpcConfig,
   internalConfig: defaultInternalConfig,
   vectorConfig: defaultVectorConfig,
+  sqlConfig: defaultSqlConfig,
+  knowledgeConfig: defaultKnowledgeConfig,
 }
+
+// Re-export for convenience
+export type { FormResponseConfig } from '@/types/action'

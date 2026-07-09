@@ -1,4 +1,5 @@
 import type { Action, ActionType, ActionStatus } from '@/types/action'
+import { parametersFromDict, headersFromDict } from '@/lib/actionTransforms'
 
 export const mapBackendActionToFrontend = (a: any): Action => {
   if (!a) return {} as Action
@@ -22,39 +23,29 @@ export const mapBackendActionToFrontend = (a: any): Action => {
   const params = a.parameters || {}
   const resp = a.response_config || {}
 
+  // Parse response config (common to most types)
+  const responseConfig = {
+    mode: resp.mode || 'json',
+    values: resp.values
+      ? Object.entries(resp.values).map(([name, v]: [string, any]) => ({
+          name,
+          type: (v.type === 'integer' ? 'integer' : 'string') as 'string' | 'integer',
+          path: v.path || '',
+        }))
+      : [],
+    template: resp.template || '',
+    onError: resp.on_error || '',
+  }
+
   if (type === 'api_request') {
-    const headers = exec.headers
-      ? Object.entries(exec.headers).map(([key, value]) => ({ key, value: String(value) }))
-      : []
-
-    const parameters = Object.entries(params).map(([key, paramVal]: [string, any]) => ({
-      key,
-      value: paramVal.default ? String(paramVal.default) : '',
-      required: !!paramVal.required,
-      paramType: paramVal.param_type || 'query',
-      description: paramVal.description || '',
-    }))
-
-    const mapping: Record<string, string> = {}
-    if (resp.values) {
-      Object.entries(resp.values).forEach(([k, valObj]: [string, any]) => {
-        mapping[k] = valObj.path || ''
-      })
-    }
-
     mapped.apiConfig = {
       protocol: exec.protocol || 'https',
       url: exec.url || '',
       method: exec.method || 'GET',
-      headers,
-      parameters,
+      headers: headersFromDict(exec.headers),
+      parameters: parametersFromDict(params),
       timeout: exec.timeout || 5000,
-      responseConfig: {
-        path: resp.values ? (Object.values(resp.values)[0] as any)?.path || '' : '',
-        mapping,
-        template: resp.template || '',
-        onError: resp.on_error || '',
-      },
+      responseConfig,
     }
   } else if (type === 'rpc_request') {
     mapped.rpcConfig = {
@@ -63,6 +54,8 @@ export const mapBackendActionToFrontend = (a: any): Action => {
       method: exec.method || '',
       protoFile: exec.proto_file || '',
       timeout: exec.timeout || 3000,
+      parameters: parametersFromDict(params),
+      responseConfig,
     }
   } else if (type === 'internal') {
     mapped.internalConfig = {
@@ -71,13 +64,30 @@ export const mapBackendActionToFrontend = (a: any): Action => {
   } else if (type === 'vector_query') {
     const embeddingConfig = exec.embedding_config || {}
     mapped.vectorConfig = {
-      indexName: exec.collection_name || '',
-      embeddingModel: embeddingConfig.model || '',
-      topK: exec.max_results || 5,
-      threshold: exec.threshold || 0.7,
       connector: exec.connector || '',
       connectionString: exec.connection_string || '',
+      collectionName: exec.collection_name || '',
+      maxResults: exec.max_results || 5,
+      embeddingModel: embeddingConfig.model || '',
       filter: exec.filter,
+      responseConfig,
+    }
+  } else if (type === 'sql_query') {
+    mapped.sqlConfig = {
+      connector: exec.connector || '',
+      connectionString: exec.connection_string || '',
+      maxResults: exec.max_results || 100,
+      parameters: parametersFromDict(params),
+      responseConfig,
+    }
+  } else if (type === 'knowledge_query') {
+    mapped.knowledgeConfig = {
+      connector: exec.connector || '',
+      connectionString: exec.connection_string || '',
+      collectionName: exec.collection_name || '',
+      maxResults: exec.max_results || 10,
+      parameters: parametersFromDict(params),
+      responseConfig,
     }
   }
 

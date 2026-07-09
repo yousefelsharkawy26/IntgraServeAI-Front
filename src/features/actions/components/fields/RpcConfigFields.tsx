@@ -2,9 +2,14 @@ import { useFormContext } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { ActionFormData } from '@/schemas/actionSchema'
+import { ParameterFields } from './ParameterFields'
+import { ResponseConfigFields } from './ResponseConfigFields'
 
 export function RpcConfigFields() {
-  const { register, formState: { errors } } = useFormContext<ActionFormData>()
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext<ActionFormData>()
 
   return (
     <div className="space-y-4">
@@ -12,8 +17,8 @@ export function RpcConfigFields() {
         RPC Configuration
       </h3>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
           <Label className="text-xs">Host</Label>
           <Input
             {...register('rpcConfig.host')}
@@ -31,7 +36,7 @@ export function RpcConfigFields() {
           <Label className="text-xs">Service</Label>
           <Input
             {...register('rpcConfig.service')}
-            placeholder="StatusService"
+            placeholder="BookingService"
             className="mt-1 h-9 text-xs"
           />
           {errors.rpcConfig?.service && (
@@ -45,7 +50,7 @@ export function RpcConfigFields() {
           <Label className="text-xs">Method</Label>
           <Input
             {...register('rpcConfig.method')}
-            placeholder="CheckHealth"
+            placeholder="BookFlight"
             className="mt-1 h-9 text-xs"
           />
           {errors.rpcConfig?.method && (
@@ -59,7 +64,7 @@ export function RpcConfigFields() {
           <Label className="text-xs">Proto File</Label>
           <Input
             {...register('rpcConfig.protoFile')}
-            placeholder="status.proto"
+            placeholder="./protos/booking.proto"
             className="mt-1 h-9 text-xs"
           />
           {errors.rpcConfig?.protoFile && (
@@ -78,6 +83,9 @@ export function RpcConfigFields() {
           />
         </div>
       </div>
+
+      <ParameterFields basePath="rpcConfig" actionType="rpc_request" />
+      <ResponseConfigFields basePath="rpcConfig" actionType="rpc_request" />
     </div>
   )
 }

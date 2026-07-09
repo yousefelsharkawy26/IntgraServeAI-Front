@@ -6,6 +6,8 @@ import type {
   CreateActionData,
   ExecutionConfig,
   ParameterDetail,
+  ResponseValueEntry,
+  FormResponseConfig,
 } from '@/types/action'
 import {
   defaultApiConfig,
@@ -13,6 +15,8 @@ import {
   defaultInternalConfig,
   defaultRpcConfig,
   defaultVectorConfig,
+  defaultSqlConfig,
+  defaultKnowledgeConfig,
   type ActionFormData,
 } from '@/schemas/actionSchema'
 
@@ -35,15 +39,19 @@ export function parametersToDict(
   arr: ActionParameter[] = [],
 ): Record<string, ParameterDetail> {
   const dict: Record<string, ParameterDetail> = {}
-  for (const { key, value, required, paramType, description } of arr) {
+  for (const { key, value, required, paramType, description, enumValues } of arr) {
     if (key.trim()) {
-      dict[key] = {
+      const param: ParameterDetail = {
         type: 'string',
         required,
         param_type: paramType || 'query',
         description: description || `Parameter ${key}`,
-        default: value,
       }
+      if (value) param.default = value
+      if (enumValues?.trim()) {
+        param.enum = enumValues.split(',').map((v) => v.trim()).filter(Boolean)
+      }
+      dict[key] = param
     }
   }
   return dict
@@ -59,16 +67,61 @@ export function parametersFromDict(
     required: detail.required,
     paramType: detail.param_type || 'query',
     description: detail.description || '',
+    enumValues: detail.enum ? detail.enum.join(', ') : '',
   }))
+}
+
+// ── Helpers: response config ↔ form ──────────────────────────────────────────
+
+function responseValuesFromBackend(
+  values?: Record<string, { type: string; path: string }>,
+): ResponseValueEntry[] {
+  if (!values) return []
+  return Object.entries(values).map(([name, v]) => ({
+    name,
+    type: (v.type === 'integer' ? 'integer' : 'string') as 'string' | 'integer',
+    path: v.path,
+  }))
+}
+
+function responseValuesToBackend(
+  entries: ResponseValueEntry[],
+): Record<string, { type: string; path: string }> | undefined {
+  if (!entries.length) return undefined
+  const dict: Record<string, { type: string; path: string }> = {}
+  for (const e of entries) {
+    if (e.name.trim() && e.path.trim()) {
+      dict[e.name] = { type: e.type, path: e.path }
+    }
+  }
+  return Object.keys(dict).length > 0 ? dict : undefined
+}
+
+function buildResponseConfig(rc: FormResponseConfig | undefined): BackendResponseConfig | undefined {
+  if (!rc) return undefined
+  const values = responseValuesToBackend(rc.values)
+  return {
+    mode: (rc.mode || 'json') as BackendResponseConfig['mode'],
+    ...(values ? { values } : {}),
+    template: rc.template || '{{result}}',
+    on_error: rc.onError || 'Action execution failed',
+  }
+}
+
+function defaultResponseConfig(type: string): FormResponseConfig {
+  const cfg = {
+    mode: 'json',
+    values: [] as ResponseValueEntry[],
+    template: '{{result}}',
+    onError: 'Action execution failed',
+  }
+  if (type === 'sql_query') cfg.mode = 'raw'
+  if (type === 'knowledge_query') cfg.mode = 'raw'
+  return cfg
 }
 
 // ── Form → API payload ───────────────────────────────────────────────────────
 
-/**
- * Convert the form's camelCase shape into the backend's snake_case payload.
- * Only the fields relevant to the selected `type` get populated — others
- * are left undefined so the backend ignores them.
- */
 export function buildCreatePayload(formData: ActionFormData): CreateActionData {
   const execution_config: ExecutionConfig = {}
   let parameters: Record<string, ParameterDetail> | undefined
@@ -85,21 +138,9 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
         execution_config.headers =
           Object.keys(headers).length > 0 ? headers : undefined
         execution_config.timeout = c.timeout
-
         const params = parametersToDict(c.parameters)
-        parameters =
-          Object.keys(params).length > 0 ? params : undefined
-
-        if (c.responseConfig?.path) {
-          response_config = {
-            mode: 'json',
-            values: {
-              default: { type: 'string', path: c.responseConfig.path },
-            },
-            template: c.responseConfig.template || '{{result}}',
-            on_error: c.responseConfig.onError || 'Action execution failed',
-          }
-        }
+        parameters = Object.keys(params).length > 0 ? params : undefined
+        response_config = buildResponseConfig(c.responseConfig)
       }
       break
     }
@@ -113,6 +154,9 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
         execution_config.proto_file = c.protoFile
         execution_config.method = c.method
         execution_config.timeout = c.timeout
+        const params = parametersToDict(c.parameters)
+        parameters = Object.keys(params).length > 0 ? params : undefined
+        response_config = buildResponseConfig(c.responseConfig)
       }
       break
     }
@@ -120,8 +164,6 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
     case 'internal': {
       const c = formData.internalConfig
       if (c) {
-        // TODO: confirm with backend what "internal" should map to. For now
-        // sending as `connector` since that's the closest semantic match.
         execution_config.connector = c.handler
       }
       break
@@ -132,9 +174,40 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
       if (c) {
         execution_config.connector = c.connector
         execution_config.connection_string = c.connectionString
-        execution_config.collection_name = c.indexName
-        execution_config.max_results = c.topK
-        execution_config.embedding_config = { model: c.embeddingModel }
+        execution_config.collection_name = c.collectionName
+        execution_config.max_results = c.maxResults
+        if (c.embeddingModel) {
+          execution_config.embedding_config = { model: c.embeddingModel }
+        }
+      }
+      const rc = c?.responseConfig
+      if (rc) response_config = buildResponseConfig(rc)
+      break
+    }
+
+    case 'sql_query': {
+      const c = formData.sqlConfig
+      if (c) {
+        execution_config.connector = c.connector
+        execution_config.connection_string = c.connectionString
+        execution_config.max_results = c.maxResults
+        const params = parametersToDict(c.parameters)
+        parameters = Object.keys(params).length > 0 ? params : undefined
+        response_config = buildResponseConfig(c.responseConfig)
+      }
+      break
+    }
+
+    case 'knowledge_query': {
+      const c = formData.knowledgeConfig
+      if (c) {
+        execution_config.connector = c.connector
+        execution_config.connection_string = c.connectionString
+        execution_config.collection_name = c.collectionName
+        execution_config.max_results = c.maxResults
+        const params = parametersToDict(c.parameters)
+        parameters = Object.keys(params).length > 0 ? params : undefined
+        response_config = buildResponseConfig(c.responseConfig)
       }
       break
     }
@@ -154,14 +227,6 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
 
 // ── Action → Form (for editing existing actions) ────────────────────────────
 
-/**
- * Convert an `Action` (frontend shape) into form values. Unused configs get
- * their defaults so the form stays internally consistent across type switches.
- *
- * NOTE: This expects the frontend `Action` shape. Your `actionService` is
- * responsible for converting the backend response (with `execution_config`,
- * snake_case, etc.) into the frontend `Action` shape before calling this.
- */
 export function actionToFormData(action: Action): ActionFormData {
   const base = {
     name: action.name,
@@ -182,16 +247,15 @@ export function actionToFormData(action: Action): ActionFormData {
           headers: c?.headers ?? [],
           parameters: c?.parameters ?? [],
           timeout: c?.timeout ?? 5000,
-          responseConfig: c?.responseConfig ?? {},
+          responseConfig: c?.responseConfig ?? defaultResponseConfig('api_request'),
         },
         rpcConfig: defaultRpcConfig,
         internalConfig: defaultInternalConfig,
         vectorConfig: defaultVectorConfig,
+        sqlConfig: defaultSqlConfig,
+        knowledgeConfig: defaultKnowledgeConfig,
       }
     }
-
-    // NOTE: The api_request parameters mapping now includes paramType and description,
-    // which are handled by parametersFromDict used in the mapper.
 
     case 'rpc_request': {
       const c = action.rpcConfig
@@ -204,9 +268,13 @@ export function actionToFormData(action: Action): ActionFormData {
           method: c?.method ?? '',
           protoFile: c?.protoFile ?? '',
           timeout: c?.timeout ?? 3000,
+          parameters: c?.parameters ?? [],
+          responseConfig: c?.responseConfig ?? defaultResponseConfig('rpc_request'),
         },
         internalConfig: defaultInternalConfig,
         vectorConfig: defaultVectorConfig,
+        sqlConfig: defaultSqlConfig,
+        knowledgeConfig: defaultKnowledgeConfig,
       }
     }
 
@@ -218,6 +286,8 @@ export function actionToFormData(action: Action): ActionFormData {
         rpcConfig: defaultRpcConfig,
         internalConfig: { handler: c?.handler ?? '' },
         vectorConfig: defaultVectorConfig,
+        sqlConfig: defaultSqlConfig,
+        knowledgeConfig: defaultKnowledgeConfig,
       }
     }
 
@@ -229,13 +299,54 @@ export function actionToFormData(action: Action): ActionFormData {
         rpcConfig: defaultRpcConfig,
         internalConfig: defaultInternalConfig,
         vectorConfig: {
-          indexName: c?.indexName ?? '',
-          embeddingModel: c?.embeddingModel ?? '',
-          topK: c?.topK ?? 5,
-          threshold: c?.threshold ?? 0.7,
           connector: c?.connector ?? '',
           connectionString: c?.connectionString ?? '',
+          collectionName: c?.collectionName ?? '',
+          maxResults: c?.maxResults ?? 5,
+          embeddingModel: c?.embeddingModel ?? '',
           filter: c?.filter,
+          responseConfig: c?.responseConfig ?? defaultResponseConfig('vector_query'),
+        },
+        sqlConfig: defaultSqlConfig,
+        knowledgeConfig: defaultKnowledgeConfig,
+      }
+    }
+
+    case 'sql_query': {
+      const c = action.sqlConfig
+      return {
+        ...base,
+        apiConfig: defaultApiConfig,
+        rpcConfig: defaultRpcConfig,
+        internalConfig: defaultInternalConfig,
+        vectorConfig: defaultVectorConfig,
+        sqlConfig: {
+          connector: c?.connector ?? '',
+          connectionString: c?.connectionString ?? '',
+          maxResults: c?.maxResults ?? 100,
+          parameters: c?.parameters ?? [],
+          responseConfig: c?.responseConfig ?? defaultResponseConfig('sql_query'),
+        },
+        knowledgeConfig: defaultKnowledgeConfig,
+      }
+    }
+
+    case 'knowledge_query': {
+      const c = action.knowledgeConfig
+      return {
+        ...base,
+        apiConfig: defaultApiConfig,
+        rpcConfig: defaultRpcConfig,
+        internalConfig: defaultInternalConfig,
+        vectorConfig: defaultVectorConfig,
+        sqlConfig: defaultSqlConfig,
+        knowledgeConfig: {
+          connector: c?.connector ?? '',
+          connectionString: c?.connectionString ?? '',
+          collectionName: c?.collectionName ?? '',
+          maxResults: c?.maxResults ?? 10,
+          parameters: c?.parameters ?? [],
+          responseConfig: c?.responseConfig ?? defaultResponseConfig('knowledge_query'),
         },
       }
     }

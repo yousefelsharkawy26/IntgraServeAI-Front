@@ -1,6 +1,79 @@
-export type ActionType = 'api_request' | 'rpc_request' | 'internal' | 'vector_query'
+export type ActionType = 'api_request' | 'rpc_request' | 'internal' | 'vector_query' | 'sql_query' | 'knowledge_query'
 
 export type ActionStatus = 'active' | 'inactive'
+
+// ── Action-type metadata (mirrors backend ACTION_TYPE_CONFIG) ──────────────
+
+export interface ActionTypeConfig {
+  label: string
+  description: string
+  requiredExecFields: string[]
+  optionalExecFields: string[]
+  allowedParamTypes: string[]
+  allowedResponseModes: string[]
+  readOnly?: boolean
+}
+
+export const ACTION_TYPE_CONFIGS: Record<ActionType, ActionTypeConfig> = {
+  api_request: {
+    label: 'API Request',
+    description: 'HTTP/HTTPS API calls',
+    requiredExecFields: ['protocol', 'url'],
+    optionalExecFields: ['method', 'headers', 'timeout'],
+    allowedParamTypes: ['query', 'body', 'path'],
+    allowedResponseModes: ['json', 'xml', 'html'],
+  },
+  rpc_request: {
+    label: 'RPC Request',
+    description: 'gRPC remote procedure calls',
+    requiredExecFields: ['protocol', 'host', 'service', 'method', 'proto_file'],
+    optionalExecFields: ['headers', 'timeout'],
+    allowedParamTypes: ['message_field'],
+    allowedResponseModes: ['json'],
+  },
+  vector_query: {
+    label: 'Vector Query',
+    description: 'Vector database queries with embeddings',
+    requiredExecFields: ['connector', 'connection_string', 'collection_name'],
+    optionalExecFields: ['max_results', 'auth', 'embedding_config'],
+    allowedParamTypes: ['vector'],
+    allowedResponseModes: ['json', 'raw'],
+  },
+  sql_query: {
+    label: 'SQL Query',
+    description: 'SQL database queries',
+    requiredExecFields: ['connector', 'connection_string'],
+    optionalExecFields: ['max_results', 'auth'],
+    allowedParamTypes: ['query'],
+    allowedResponseModes: ['raw', 'sql'],
+  },
+  knowledge_query: {
+    label: 'Knowledge Query',
+    description: 'Knowledge base queries',
+    requiredExecFields: ['connector', 'connection_string'],
+    optionalExecFields: ['max_results', 'auth', 'collection_name'],
+    allowedParamTypes: ['query'],
+    allowedResponseModes: ['raw'],
+  },
+  internal: {
+    label: 'Internal',
+    description: 'Internal system actions (read-only)',
+    requiredExecFields: [],
+    optionalExecFields: [],
+    allowedParamTypes: ['internal'],
+    allowedResponseModes: ['json'],
+    readOnly: true,
+  },
+}
+
+/** Types the user can select in the Create Action form (excludes internal). */
+export const CREATABLE_ACTION_TYPES: ActionType[] = [
+  'api_request',
+  'rpc_request',
+  'vector_query',
+  'sql_query',
+  'knowledge_query',
+]
 
 // ── Form-friendly types (camelCase, used in form state) ──────────────────────
 
@@ -15,13 +88,20 @@ export interface ActionParameter {
   required: boolean
   paramType: string
   description: string
+  enumValues?: string  // comma-separated string in form, converted to array for API
+}
+
+export interface ResponseValueEntry {
+  name: string
+  type: 'string' | 'integer'
+  path: string
 }
 
 export interface FormResponseConfig {
-  path?: string
-  mapping?: Record<string, string>
-  template?: string
-  onError?: string
+  mode: string
+  values: ResponseValueEntry[]
+  template: string
+  onError: string
 }
 
 export interface APIRequestConfig {
@@ -40,16 +120,35 @@ export interface RPCRequestConfig {
   method: string
   protoFile: string
   timeout: number
+  parameters: ActionParameter[]
+  responseConfig: FormResponseConfig
 }
 
 export interface VectorQueryConfig {
-  indexName: string
-  embeddingModel: string
-  topK: number
-  threshold: number
   connector: string
   connectionString: string
+  collectionName: string
+  maxResults: number
+  embeddingModel: string
   filter?: Record<string, string>
+  responseConfig: FormResponseConfig
+}
+
+export interface SQLQueryConfig {
+  connector: string
+  connectionString: string
+  maxResults: number
+  parameters: ActionParameter[]
+  responseConfig: FormResponseConfig
+}
+
+export interface KnowledgeQueryConfig {
+  connector: string
+  connectionString: string
+  collectionName: string
+  maxResults: number
+  parameters: ActionParameter[]
+  responseConfig: FormResponseConfig
 }
 
 export interface Action {
@@ -63,6 +162,8 @@ export interface Action {
   rpcConfig?: RPCRequestConfig
   internalConfig?: { handler: string }
   vectorConfig?: VectorQueryConfig
+  sqlConfig?: SQLQueryConfig
+  knowledgeConfig?: KnowledgeQueryConfig
   createdAt: string
   updatedAt: string
 }
@@ -75,31 +176,21 @@ export interface ActionFilters {
 
 // ── Backend-aligned types (snake_case, the API contract) ─────────────────────
 
-/**
- * Backend's `execution_config` — a single flat object whose populated fields
- * depend on `type`. See backend OpenAPI schema for which fields apply to which
- * type. We only populate the relevant subset per submit.
- */
 export interface ExecutionConfig {
-  // api_request / rpc_request
   protocol?: 'http' | 'https' | 'grpc'
   method?: string
   url?: string
   headers?: Record<string, string>
   timeout?: number
-  // rpc_request
   host?: string
   service?: string
   proto_file?: string
-  // internal
   connector?: string
   connection_string?: string
-  // vector_query
   collection_name?: string
   max_results?: number
-  embedding_config?: Record<string, unknown>
-  // common
   auth?: Record<string, string>
+  embedding_config?: Record<string, unknown>
 }
 
 export interface ParameterDetail {
@@ -112,10 +203,10 @@ export interface ParameterDetail {
 }
 
 export interface BackendResponseConfig {
-  mode?: 'json' | 'xml' | 'html' | 'raw'
+  mode: 'json' | 'xml' | 'html' | 'raw' | 'sql'
   values?: Record<string, { type: string; path: string }>
-  template?: string
-  on_error?: string
+  template: string
+  on_error: string
 }
 
 /** Payload sent to POST /actions and PUT /actions/:id */

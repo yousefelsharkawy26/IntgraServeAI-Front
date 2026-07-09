@@ -16,7 +16,10 @@ import { ApiConfigFields } from './fields/ApiConfigFields'
 import { RpcConfigFields } from './fields/RpcConfigFields'
 import { InternalConfigFields } from './fields/InternalConfigFields'
 import { VectorConfigFields } from './fields/VectorConfigFields'
+import { SqlConfigFields } from './fields/SqlConfigFields'
+import { KnowledgeConfigFields } from './fields/KnowledgeConfigFields'
 import type { Action, ActionType } from '@/types/action'
+import { ACTION_TYPE_CONFIGS } from '@/types/action'
 
 const fieldVariants = {
   initial: { opacity: 0, height: 0 },
@@ -30,6 +33,15 @@ interface ActionModalProps {
   action: Action | null
 }
 
+const configComponents: Record<string, React.ComponentType> = {
+  api_request: ApiConfigFields,
+  rpc_request: RpcConfigFields,
+  internal: InternalConfigFields,
+  vector_query: VectorConfigFields,
+  sql_query: SqlConfigFields,
+  knowledge_query: KnowledgeConfigFields,
+}
+
 export function ActionModal({ open, onClose, action }: ActionModalProps) {
   const { createAction, updateAction } = useActionMutations()
 
@@ -38,11 +50,8 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
     defaultValues: defaultFormValues,
   })
 
-  // Single source of truth for which config section to show.
-  // Using watch directly avoids the one-frame delay of a separate useState + useEffect.
   const watchedType = methods.watch('type') as ActionType
 
-  // Reset form when the action prop changes (create vs. edit)
   useEffect(() => {
     if (action) {
       methods.reset(actionToFormData(action))
@@ -52,14 +61,9 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
   }, [action, methods.reset])
 
   const onSubmit = (data: ActionFormData) => {
-    // Transform form data (camelCase, separate configs) → backend payload
-    // (snake_case, single execution_config, dict headers/params).
     const payload = buildCreatePayload(data)
 
     if (action) {
-      // Preserve the current active status — the edit form doesn't include
-      // a toggle for it (that's controlled by the list's switch). Without
-      // this, editing an inactive action would always reactivate it.
       payload.active = action.status === 'active'
       updateAction.mutate({ id: action.id, data: payload })
     } else {
@@ -67,6 +71,9 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
     }
     onClose()
   }
+
+  const ConfigComponent = configComponents[watchedType]
+  const typeConfig = ACTION_TYPE_CONFIGS[watchedType]
 
   return (
     <AnimatePresence>
@@ -88,9 +95,16 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border-light)] px-6 py-4">
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                {action ? 'Edit Action' : 'Create Action'}
-              </h2>
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+                  {action ? 'Edit Action' : 'Create Action'}
+                </h2>
+                {typeConfig && (
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                    {typeConfig.description}
+                  </p>
+                )}
+              </div>
               <button
                 onClick={onClose}
                 className="rounded-lg p-2 text-[var(--color-text-muted)] hover:bg-[var(--color-bg-base)]"
@@ -104,7 +118,6 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
                 onSubmit={methods.handleSubmit(
                   onSubmit,
                   (errors) => {
-                    // eslint-disable-next-line no-console
                     console.warn('[ActionModal] validation failed:', errors)
                   },
                 )}
@@ -112,54 +125,18 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
               >
                 <BasicInfoFields />
 
-                {/* Dynamic config sections — switch on selected type */}
+                {/* Dynamic config section */}
                 <AnimatePresence mode="wait">
-                  {watchedType === 'api_request' && (
+                  {ConfigComponent && (
                     <motion.div
-                      key="api"
+                      key={watchedType}
                       variants={fieldVariants}
                       initial="initial"
                       animate="animate"
                       exit="exit"
                       className="overflow-hidden"
                     >
-                      <ApiConfigFields />
-                    </motion.div>
-                  )}
-                  {watchedType === 'rpc_request' && (
-                    <motion.div
-                      key="rpc"
-                      variants={fieldVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      className="overflow-hidden"
-                    >
-                      <RpcConfigFields />
-                    </motion.div>
-                  )}
-                  {watchedType === 'internal' && (
-                    <motion.div
-                      key="internal"
-                      variants={fieldVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      className="overflow-hidden"
-                    >
-                      <InternalConfigFields />
-                    </motion.div>
-                  )}
-                  {watchedType === 'vector_query' && (
-                    <motion.div
-                      key="vector"
-                      variants={fieldVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      className="overflow-hidden"
-                    >
-                      <VectorConfigFields />
+                      <ConfigComponent />
                     </motion.div>
                   )}
                 </AnimatePresence>

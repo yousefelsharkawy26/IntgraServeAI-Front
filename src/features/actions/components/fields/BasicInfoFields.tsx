@@ -10,9 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ACTION_TYPES, ACTION_TYPE_CONFIG } from '@/constants/actions'
 import type { ActionFormData } from '@/schemas/actionSchema'
 import type { ActionType } from '@/types/action'
+import { CREATABLE_ACTION_TYPES, ACTION_TYPE_CONFIGS } from '@/types/action'
 
 export function BasicInfoFields() {
   const { register, watch, setValue, formState: { errors } } = useFormContext<ActionFormData>()
@@ -58,13 +58,18 @@ export function BasicInfoFields() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {ACTION_TYPES.map((t) => (
+            {CREATABLE_ACTION_TYPES.map((t) => (
               <SelectItem key={t} value={t}>
-                {ACTION_TYPE_CONFIG[t].label}
+                {ACTION_TYPE_CONFIGS[t].label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {type && ACTION_TYPE_CONFIGS[type as ActionType] && (
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            {ACTION_TYPE_CONFIGS[type as ActionType].description}
+          </p>
+        )}
       </div>
 
       <div className="flex items-end">
