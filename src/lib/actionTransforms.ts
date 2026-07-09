@@ -35,12 +35,13 @@ export function parametersToDict(
   arr: ActionParameter[] = [],
 ): Record<string, ParameterDetail> {
   const dict: Record<string, ParameterDetail> = {}
-  for (const { key, value, required } of arr) {
+  for (const { key, value, required, paramType, description } of arr) {
     if (key.trim()) {
       dict[key] = {
         type: 'string',
         required,
-        param_type: 'string',
+        param_type: paramType || 'query',
+        description: description || `Parameter ${key}`,
         default: value,
       }
     }
@@ -56,6 +57,8 @@ export function parametersFromDict(
     key,
     value: detail.default ?? '',
     required: detail.required,
+    paramType: detail.param_type || 'query',
+    description: detail.description || '',
   }))
 }
 
@@ -93,6 +96,8 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
             values: {
               default: { type: 'string', path: c.responseConfig.path },
             },
+            template: c.responseConfig.template || '{{result}}',
+            on_error: c.responseConfig.onError || 'Action execution failed',
           }
         }
       }
@@ -102,6 +107,7 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
     case 'rpc_request': {
       const c = formData.rpcConfig
       if (c) {
+        execution_config.protocol = 'grpc'
         execution_config.host = c.host
         execution_config.service = c.service
         execution_config.proto_file = c.protoFile
@@ -124,6 +130,8 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
     case 'vector_query': {
       const c = formData.vectorConfig
       if (c) {
+        execution_config.connector = c.connector
+        execution_config.connection_string = c.connectionString
         execution_config.collection_name = c.indexName
         execution_config.max_results = c.topK
         execution_config.embedding_config = { model: c.embeddingModel }
@@ -182,6 +190,9 @@ export function actionToFormData(action: Action): ActionFormData {
       }
     }
 
+    // NOTE: The api_request parameters mapping now includes paramType and description,
+    // which are handled by parametersFromDict used in the mapper.
+
     case 'rpc_request': {
       const c = action.rpcConfig
       return {
@@ -222,6 +233,8 @@ export function actionToFormData(action: Action): ActionFormData {
           embeddingModel: c?.embeddingModel ?? '',
           topK: c?.topK ?? 5,
           threshold: c?.threshold ?? 0.7,
+          connector: c?.connector ?? '',
+          connectionString: c?.connectionString ?? '',
           filter: c?.filter,
         },
       }

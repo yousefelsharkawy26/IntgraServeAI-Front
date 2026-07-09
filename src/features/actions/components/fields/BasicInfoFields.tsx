@@ -24,11 +24,15 @@ export function BasicInfoFields() {
         <Label className="text-sm font-medium">Name</Label>
         <Input
           {...register('name')}
-          placeholder="e.g., Get Product Info"
+          placeholder="e.g., get_product_info"
           className="mt-1.5 h-10"
         />
-        {errors.name && (
+        {errors.name ? (
           <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>
+        ) : (
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            Lowercase letters, digits, and underscores only. Must start with a letter.
+          </p>
         )}
       </div>
 

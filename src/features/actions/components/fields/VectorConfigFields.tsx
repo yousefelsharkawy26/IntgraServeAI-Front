@@ -58,6 +58,34 @@ export function VectorConfigFields() {
         </div>
 
         <div>
+          <Label className="text-xs">Connector</Label>
+          <Input
+            {...register('vectorConfig.connector')}
+            placeholder="e.g., pinecone"
+            className="mt-1 h-9 text-xs"
+          />
+          {errors.vectorConfig?.connector && (
+            <p className="mt-1 text-xs text-red-500">
+              {errors.vectorConfig.connector.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label className="text-xs">Connection String</Label>
+          <Input
+            {...register('vectorConfig.connectionString')}
+            placeholder="e.g., host:port or connection URL"
+            className="mt-1 h-9 text-xs"
+          />
+          {errors.vectorConfig?.connectionString && (
+            <p className="mt-1 text-xs text-red-500">
+              {errors.vectorConfig.connectionString.message}
+            </p>
+          )}
+        </div>
+
+        <div>
           <Label className="text-xs">Embedding Model</Label>
           <Input
             {...register('vectorConfig.embeddingModel')}

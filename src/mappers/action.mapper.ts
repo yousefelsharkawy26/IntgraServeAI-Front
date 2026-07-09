@@ -23,7 +23,7 @@ export const mapBackendActionToFrontend = (a: any): Action => {
   const resp = a.response_config || {}
 
   if (type === 'api_request') {
-    const headers = exec.headers 
+    const headers = exec.headers
       ? Object.entries(exec.headers).map(([key, value]) => ({ key, value: String(value) }))
       : []
 
@@ -31,6 +31,8 @@ export const mapBackendActionToFrontend = (a: any): Action => {
       key,
       value: paramVal.default ? String(paramVal.default) : '',
       required: !!paramVal.required,
+      paramType: paramVal.param_type || 'query',
+      description: paramVal.description || '',
     }))
 
     const mapping: Record<string, string> = {}
@@ -50,6 +52,8 @@ export const mapBackendActionToFrontend = (a: any): Action => {
       responseConfig: {
         path: resp.values ? (Object.values(resp.values)[0] as any)?.path || '' : '',
         mapping,
+        template: resp.template || '',
+        onError: resp.on_error || '',
       },
     }
   } else if (type === 'rpc_request') {
@@ -71,6 +75,8 @@ export const mapBackendActionToFrontend = (a: any): Action => {
       embeddingModel: embeddingConfig.model || '',
       topK: exec.max_results || 5,
       threshold: exec.threshold || 0.7,
+      connector: exec.connector || '',
+      connectionString: exec.connection_string || '',
       filter: exec.filter,
     }
   }

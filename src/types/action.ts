@@ -13,11 +13,15 @@ export interface ActionParameter {
   key: string
   value: string
   required: boolean
+  paramType: string
+  description: string
 }
 
 export interface FormResponseConfig {
   path?: string
   mapping?: Record<string, string>
+  template?: string
+  onError?: string
 }
 
 export interface APIRequestConfig {
@@ -43,6 +47,8 @@ export interface VectorQueryConfig {
   embeddingModel: string
   topK: number
   threshold: number
+  connector: string
+  connectionString: string
   filter?: Record<string, string>
 }
 
@@ -75,8 +81,8 @@ export interface ActionFilters {
  * type. We only populate the relevant subset per submit.
  */
 export interface ExecutionConfig {
-  // api_request
-  protocol?: 'http' | 'https'
+  // api_request / rpc_request
+  protocol?: 'http' | 'https' | 'grpc'
   method?: string
   url?: string
   headers?: Record<string, string>
@@ -100,13 +106,13 @@ export interface ParameterDetail {
   type: string
   required: boolean
   param_type: string
-  description?: string
+  description: string
   default?: string
   enum?: (string | number)[]
 }
 
 export interface BackendResponseConfig {
-  mode?: 'json' | 'raw' | 'template'
+  mode?: 'json' | 'xml' | 'html' | 'raw'
   values?: Record<string, { type: string; path: string }>
   template?: string
   on_error?: string

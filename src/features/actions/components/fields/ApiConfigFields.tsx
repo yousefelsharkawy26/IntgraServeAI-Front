@@ -13,6 +13,12 @@ import {
 import { HTTP_METHODS } from '@/constants/actions'
 import type { ActionFormData } from '@/schemas/actionSchema'
 
+const PARAM_TYPE_OPTIONS = [
+  { value: 'query', label: 'Query' },
+  { value: 'body', label: 'Body' },
+  { value: 'path', label: 'Path' },
+] as const
+
 export function ApiConfigFields() {
   const {
     register,
@@ -33,6 +39,10 @@ export function ApiConfigFields() {
     append: appendParam,
     remove: removeParam,
   } = useFieldArray({ control, name: 'apiConfig.parameters' as const })
+
+  // Infer default param type from HTTP method
+  const currentMethod = watch('apiConfig.method')
+  const defaultParamType = (currentMethod === 'GET' || currentMethod === 'DELETE') ? 'query' : 'body'
 
   return (
     <div className="space-y-4">
@@ -111,6 +121,30 @@ export function ApiConfigFields() {
             className="mt-1 h-9 text-xs"
           />
         </div>
+
+        <div>
+          <Label className="text-xs">Response Template</Label>
+          <Input
+            {...register('apiConfig.responseConfig.template')}
+            placeholder="{{result}}"
+            className="mt-1 h-9 text-xs"
+          />
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            Template for formatting successful responses
+          </p>
+        </div>
+
+        <div>
+          <Label className="text-xs">Error Message</Label>
+          <Input
+            {...register('apiConfig.responseConfig.onError')}
+            placeholder="Action execution failed"
+            className="mt-1 h-9 text-xs"
+          />
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            Message shown when the action fails
+          </p>
+        </div>
       </div>
 
       {/* Headers */}
@@ -161,40 +195,64 @@ export function ApiConfigFields() {
             variant="ghost"
             size="sm"
             className="h-7 gap-1 text-xs"
-            onClick={() => appendParam({ key: '', value: '', required: false })}
+            onClick={() => appendParam({ key: '', value: '', required: false, paramType: defaultParamType, description: '' })}
           >
             <Plus className="h-3 w-3" /> Add
           </Button>
         </div>
         {paramFields.map((field, i) => (
-          <div key={field.id} className="mt-2 flex items-center gap-2">
-            <Input
-              {...register(`apiConfig.parameters.${i}.key`)}
-              placeholder="Key"
-              className="h-8 text-xs flex-1"
-            />
-            <Input
-              {...register(`apiConfig.parameters.${i}.value`)}
-              placeholder="Value"
-              className="h-8 text-xs flex-1"
-            />
-            <label className="flex items-center gap-1 text-xs whitespace-nowrap">
-              <input
-                type="checkbox"
-                {...register(`apiConfig.parameters.${i}.required`)}
-                className="rounded"
+          <div key={field.id} className="mt-2 space-y-1">
+            <div className="flex items-center gap-2">
+              <Input
+                {...register(`apiConfig.parameters.${i}.key`)}
+                placeholder="Key"
+                className="h-8 text-xs flex-1"
               />
-              Req
-            </label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => removeParam(i)}
-            >
-              <Trash2 className="h-3 w-3 text-red-500" />
-            </Button>
+              <Input
+                {...register(`apiConfig.parameters.${i}.value`)}
+                placeholder="Default Value"
+                className="h-8 text-xs flex-1"
+              />
+              <Select
+                value={watch(`apiConfig.parameters.${i}.paramType`) || defaultParamType}
+                onValueChange={(v) =>
+                  setValue(`apiConfig.parameters.${i}.paramType`, v as 'query' | 'body' | 'path')
+                }
+              >
+                <SelectTrigger className="h-8 text-xs w-[90px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PARAM_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  {...register(`apiConfig.parameters.${i}.required`)}
+                  className="rounded"
+                />
+                Req
+              </label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => removeParam(i)}
+              >
+                <Trash2 className="h-3 w-3 text-red-500" />
+              </Button>
+            </div>
+            <Input
+              {...register(`apiConfig.parameters.${i}.description`)}
+              placeholder="Description (e.g., The product ID to look up)"
+              className="h-7 text-xs"
+            />
           </div>
         ))}
       </div>

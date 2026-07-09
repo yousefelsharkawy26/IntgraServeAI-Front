@@ -11,11 +11,19 @@ const apiConfigBaseSchema = z.object({
   url: z.string(),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
-  parameters: z.array(z.object({ key: z.string(), value: z.string(), required: z.boolean() })),
+  parameters: z.array(z.object({
+    key: z.string(),
+    value: z.string(),
+    required: z.boolean(),
+    paramType: z.enum(['query', 'body', 'path']),
+    description: z.string(),
+  })),
   timeout: z.number(),
   responseConfig: z.object({
     path: z.string().optional(),
     mapping: z.record(z.string(), z.any()).optional(),
+    template: z.string().optional(),
+    onError: z.string().optional(),
   }),
 })
 
@@ -36,6 +44,8 @@ const vectorConfigBaseSchema = z.object({
   embeddingModel: z.string(),
   topK: z.number(),
   threshold: z.number(),
+  connector: z.string(),
+  connectionString: z.string(),
   filter: z.record(z.string(), z.string()).optional(),
 })
 
@@ -63,6 +73,8 @@ export const vectorConfigSchema = vectorConfigBaseSchema.extend({
   embeddingModel: z.string().min(1, 'Embedding model is required'),
   topK: z.number().min(1).max(1000),
   threshold: z.number().min(0).max(1),
+  connector: z.string().min(1, 'Connector is required'),
+  connectionString: z.string().min(1, 'Connection string is required'),
 })
 
 // ── Combined schema ──────────────────────────────────────────────────────────
@@ -72,7 +84,10 @@ export const vectorConfigSchema = vectorConfigBaseSchema.extend({
 
 export const actionSchema = z
   .object({
-    name: z.string().min(1, 'Name is required'),
+    name: z.string().min(1, 'Name is required').regex(
+      /^[a-z][a-z0-9_]*$/,
+      'Name must be lowercase letters, digits, and underscores only (e.g., get_product_info)',
+    ),
     description: z.string().min(1, 'Description is required'),
     type: z.enum(['api_request', 'rpc_request', 'internal', 'vector_query']),
     requiresConfirmation: z.boolean(),
@@ -143,7 +158,7 @@ export const defaultApiConfig = {
   url: '',
   method: 'POST' as const,
   headers: [] as { key: string; value: string }[],
-  parameters: [] as { key: string; value: string; required: boolean }[],
+  parameters: [] as { key: string; value: string; required: boolean; paramType: 'query' | 'body' | 'path'; description: string }[],
   timeout: 5000,
   responseConfig: {},
 }
@@ -163,6 +178,8 @@ export const defaultVectorConfig = {
   embeddingModel: '',
   topK: 5,
   threshold: 0.7,
+  connector: '',
+  connectionString: '',
   filter: undefined as Record<string, string> | undefined,
 }
 
