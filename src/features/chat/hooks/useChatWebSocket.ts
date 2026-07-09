@@ -471,6 +471,15 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
             toolCallId: inputToolCallId,
           })
 
+          // Guard: Don't open the modal if it's already open for this tool
+          // This prevents duplicate modals if the event is received multiple times
+          if (activeTool && activeTool.toolCallId === inputToolCallId) {
+            diagnostics.warn('lifecycle', 'Tool input modal already open, ignoring duplicate event', {
+              toolCallId: inputToolCallId,
+            })
+            break
+          }
+
           // Reset the result sent guard for this new tool input request
           resultSentRef.current = false
 
