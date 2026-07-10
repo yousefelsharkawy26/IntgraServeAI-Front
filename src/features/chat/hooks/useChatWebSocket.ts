@@ -264,6 +264,23 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
     []
   )
 
+  const finalizeStreamingMessages = useCallback(() => {
+    if (rafPendingRef.current) flushStreamingTokens()
+
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.sender === 'ai' && message.isStreaming
+          ? { ...message, isStreaming: false }
+          : message
+      )
+    )
+
+    aiMsgIdRef.current = null
+    aiBufferRef.current = ''
+    pendingTokensRef.current = ''
+    rafPendingRef.current = false
+  }, [flushStreamingTokens])
+
   // ---- Connection ----
 
   const connect = useCallback(() => {
@@ -516,17 +533,8 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
         // { type: "done" }
         // =====================================================
         case 'done': {
-          if (rafPendingRef.current) flushStreamingTokens()
+          finalizeStreamingMessages()
           setIsTyping(false)
-          if (aiMsgIdRef.current) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === aiMsgIdRef.current ? { ...m, isStreaming: false } : m
-              )
-            )
-          }
-          aiMsgIdRef.current = null
-          aiBufferRef.current = ''
 
           // Safety net: finalize any tools still in non-terminal states.
           // This should rarely trigger — the backend should always send
@@ -539,7 +547,7 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
         // { type: "error", message }
         // =====================================================
         case 'error': {
-          if (rafPendingRef.current) flushStreamingTokens()
+          finalizeStreamingMessages()
           setIsTyping(false)
           diagnostics.error('transport', 'Backend error', { message: data.message })
           setMessages((prev) => [...prev, {
@@ -674,15 +682,8 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
         }
 
         case 'stopped': {
-          if (rafPendingRef.current) flushStreamingTokens()
+          finalizeStreamingMessages()
           setIsTyping(false)
-          if (aiMsgIdRef.current) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === aiMsgIdRef.current ? { ...m, isStreaming: false } : m
-              )
-            )
-          }
           break
         }
       }
@@ -690,11 +691,9 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
 
     ws.onclose = () => {
       if (!mountedRef.current) return
-      if (rafPendingRef.current) flushStreamingTokens()
+      finalizeStreamingMessages()
       setConnectionStatus('disconnected')
       setIsTyping(false)
-      aiMsgIdRef.current = null
-      aiBufferRef.current = ''
       diagnostics.warn('transport', 'WebSocket disconnected, reconnecting in 3s')
       reconnectTimerRef.current = setTimeout(() => {
         if (mountedRef.current) connect()
@@ -704,7 +703,7 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
     ws.onerror = () => {
       ws.close()
     }
-  }, [customerEmail, customerName, token, scheduleFlush, flushStreamingTokens, finalizeRunningTools, updateToolStatus])
+  }, [customerEmail, customerName, token, scheduleFlush, flushStreamingTokens, finalizeStreamingMessages, finalizeRunningTools, updateToolStatus])
 
   // ---- Disconnect ----
 
@@ -720,14 +719,9 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
       wsRef.current.close()
       wsRef.current = null
     }
-    if (rafPendingRef.current) {
-      rafPendingRef.current = false
-    }
-    pendingTokensRef.current = ''
+    finalizeStreamingMessages()
     setConnectionStatus('disconnected')
-    aiMsgIdRef.current = null
-    aiBufferRef.current = ''
-  }, [])
+  }, [finalizeStreamingMessages])
 
   // ---- Send Message ----
 
