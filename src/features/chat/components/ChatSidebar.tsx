@@ -282,10 +282,17 @@ const ConversationItem = React.memo(function ConversationItem({
 }: ConversationItemProps) {
   return (
     <div className="relative group/item">
-      <motion.button
-        type="button"
+      <motion.div
+        role="button"
+        tabIndex={0}
         whileHover={{ x: 1 }}
         onClick={() => onSelect(conversation.id)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect(conversation.id)
+          }
+        }}
         aria-current={isActive ? 'true' : undefined}
         aria-label={`${conversation.title}. ${conversation.messageCount} messages. ${formatRelativeTime(conversation.timestamp)}${conversation.isPinned ? '. Pinned.' : ''}${conversation.isFavorite ? '. Favorite.' : ''}`}
         className={cn(
@@ -363,7 +370,7 @@ const ConversationItem = React.memo(function ConversationItem({
             <Archive className={cn('h-3 w-3', conversation.isArchived && 'text-blue-500')} aria-hidden="true" />
           </button>
         </div>
-      </motion.button>
+      </motion.div>
     </div>
   )
 })

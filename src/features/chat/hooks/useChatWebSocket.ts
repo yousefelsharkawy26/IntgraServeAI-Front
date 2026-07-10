@@ -722,8 +722,21 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
       reconnectTimerRef.current = null
     }
     if (wsRef.current) {
-      wsRef.current.close()
+      const ws = wsRef.current
       wsRef.current = null
+
+      // React StrictMode can unmount immediately after opening a socket in dev.
+      // Closing a CONNECTING socket triggers noisy browser warnings:
+      // "WebSocket is closed before the connection is established".
+      // Defer close until onopen for CONNECTING sockets and detach all handlers.
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => ws.close()
+        ws.onmessage = null
+        ws.onerror = null
+        ws.onclose = null
+      } else if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSING) {
+        ws.close()
+      }
     }
     finalizeStreamingMessages()
     setConnectionStatus('disconnected')
