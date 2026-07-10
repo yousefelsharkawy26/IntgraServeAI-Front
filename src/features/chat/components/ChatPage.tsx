@@ -41,6 +41,8 @@ export default function ChatPage() {
   const [draftSessionId, setDraftSessionId] = useState(() => createDraftSessionId(authUser?.id))
   const shouldNavigateAfterFirstMessageRef = useRef(false)
   const skipNextHydrationRef = useRef(false)
+  const pendingFirstMessageRef = useRef('')
+  const createdDraftConversationIdRef = useRef<string | null>(null)
   const objectUrlsRef = useRef<Set<string>>(new Set())
 
   const sidebarOpen = useChatStore((s) => s.sidebarOpen)
@@ -82,7 +84,7 @@ export default function ChatPage() {
 
   const activeConversation = conversationDetailQuery.data
   const effectiveSessionId = routeConversationId
-    ? activeConversation?.sessionId || null
+    ? activeConversation?.sessionId || (routeConversationId === createdDraftConversationIdRef.current ? draftSessionId : null)
     : draftSessionId
 
   // ---- WebSocket hook ----
@@ -193,16 +195,17 @@ export default function ChatPage() {
       sessionId: effectiveSessionId || draftSessionId,
       customerEmail: userEmail,
       customerName: authUser?.name || 'Customer',
-      title: authUser?.name || 'New Chat',
-      preview: inputValue,
+      title: pendingFirstMessageRef.current || 'New Chat',
+      preview: pendingFirstMessageRef.current,
       timestamp: new Date().toISOString(),
       messageCount: Math.max(1, storeMessages.length),
       isActive: true,
     }
     conversationsQuery.upsertConversation(optimisticConversation)
+    createdDraftConversationIdRef.current = conversationId
     skipNextHydrationRef.current = true
     navigate(`/chat/${conversationId}`, { replace: true })
-  }, [authUser?.name, conversationId, conversationsQuery, draftSessionId, effectiveSessionId, inputValue, navigate, routeConversationId, storeMessages.length, userEmail])
+  }, [authUser?.name, conversationId, conversationsQuery, draftSessionId, effectiveSessionId, navigate, routeConversationId, storeMessages.length, userEmail])
 
   useEffect(() => {
     return () => {
@@ -221,9 +224,11 @@ export default function ChatPage() {
 
   const handleSendMessage = useCallback((content: string) => {
     if (!content.trim() && pendingFiles.length === 0) return
-    const sent = wsSendMessage(content)
+    const trimmed = content.trim()
+    const sent = wsSendMessage(trimmed)
     if (!sent) return
     if (!routeConversationId) {
+      pendingFirstMessageRef.current = trimmed
       shouldNavigateAfterFirstMessageRef.current = true
     }
     setInputValue('')
@@ -266,6 +271,8 @@ export default function ChatPage() {
     setActiveConversation(null)
     setDraftSessionId(createDraftSessionId(authUser?.id))
     shouldNavigateAfterFirstMessageRef.current = false
+    pendingFirstMessageRef.current = ''
+    createdDraftConversationIdRef.current = null
     navigate('/chat')
   }, [authUser?.id, navigate, resetChatState, resetDraftState, setActiveConversation])
 

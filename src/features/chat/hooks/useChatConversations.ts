@@ -67,9 +67,11 @@ export function useChatConversations({ userId, userEmail }: UseChatConversations
   const [filter, setFilter] = useState<ConversationFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [meta, setMeta] = useState<ConversationMetaMap>(() => readMeta(userId))
+  const [optimisticConversations, setOptimisticConversations] = useState<Conversation[]>([])
 
   useEffect(() => {
     setMeta(readMeta(userId))
+    setOptimisticConversations([])
     setFilter('all')
     setSearchQuery('')
   }, [userId])
@@ -100,16 +102,17 @@ export function useChatConversations({ userId, userEmail }: UseChatConversations
 
   const allConversations = useMemo(() => {
     const pages = query.data?.pages || []
-    return uniqueById(
-      pages
+    return uniqueById([
+      ...optimisticConversations.map((conversation) => mergeMeta(conversation, meta)),
+      ...pages
         .flatMap((page) => page.items)
-        .map((conversation) => mergeMeta(conversation, meta))
-    ).sort((a, b) => {
+        .map((conversation) => mergeMeta(conversation, meta)),
+    ]).sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1
       if (!a.isPinned && b.isPinned) return 1
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     })
-  }, [query.data, meta])
+  }, [query.data, meta, optimisticConversations])
 
   const conversations = useMemo(
     () => applyFilter(allConversations, filter).filter((conversation) => conversation.messageCount > 0),
@@ -160,13 +163,17 @@ export function useChatConversations({ userId, userEmail }: UseChatConversations
 
   const upsertConversation = useCallback((conversation: Conversation) => {
     const merged = mergeMeta(conversation, meta)
+
+    // Keep optimistic conversations separate from server pages so adding one
+    // conversation can never replace the entire paginated list if the query is
+    // still loading or temporarily absent from the cache.
+    setOptimisticConversations((current) => [
+      merged,
+      ...current.filter((item) => item.id !== merged.id),
+    ])
+
     queryClient.setQueryData<InfiniteData<ConversationsPage>>(queryKey, (old) => {
-      if (!old) {
-        return {
-          pageParams: [1],
-          pages: [{ items: [merged], meta: { page: 1, limit: PAGE_SIZE, total: 1, has_more: false } }],
-        }
-      }
+      if (!old) return old
 
       const firstPage = old.pages[0]
       const withoutDuplicate = old.pages.map((page) => ({

@@ -115,6 +115,7 @@ interface BackendConversation {
   session_id: string
   customer_email: string
   customer_name: string
+  title?: string | null
   external_customer_id?: string | null
   is_active: boolean
   started_at: string
@@ -144,7 +145,7 @@ const mapBackendConversation = (conversation: BackendConversation): Conversation
   sessionId: conversation.session_id,
   customerEmail: conversation.customer_email,
   customerName: conversation.customer_name,
-  title: conversation.customer_name || conversation.customer_email || 'Conversation',
+  title: conversation.title || 'New Chat',
   preview: conversation.has_pending_state ? 'Pending action' : '',
   timestamp: conversation.started_at,
   messageCount: conversation.message_count || 0,
