@@ -93,22 +93,149 @@ export function getAssetUrl(url: string): string {
 // Conversation Operations
 // ============================================================
 
-export async function fetchConversations(): Promise<Conversation[]> {
-  try {
-    const { data } = await api.get<Conversation[]>(API_ENDPOINTS.chat.conversations)
-    return data
-  } catch {
-    // Return demo conversations if API not available
-    return getDemoConversations()
+export interface PageMeta {
+  page: number
+  limit: number
+  total: number
+  has_more: boolean
+}
+
+export interface ConversationsPage {
+  items: Conversation[]
+  meta: PageMeta
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: import('../types').ChatMessage[]
+  messagesMeta?: PageMeta
+}
+
+interface BackendConversation {
+  id: string
+  session_id: string
+  customer_email: string
+  customer_name: string
+  external_customer_id?: string | null
+  is_active: boolean
+  started_at: string
+  ended_at?: string | null
+  has_pending_state?: boolean
+  message_count?: number
+  messages?: BackendMessage[]
+  messages_meta?: PageMeta
+}
+
+interface BackendMessage {
+  id: string
+  chat_conversation_id: string
+  sender_type: string
+  message_text: string
+  created_at: string
+  attachments?: Array<{
+    id: string
+    filename: string
+    content_type: string
+    size_bytes: number
+  }>
+}
+
+const mapBackendConversation = (conversation: BackendConversation): Conversation => ({
+  id: String(conversation.id),
+  sessionId: conversation.session_id,
+  customerEmail: conversation.customer_email,
+  customerName: conversation.customer_name,
+  title: conversation.customer_name || conversation.customer_email || 'Conversation',
+  preview: conversation.has_pending_state ? 'Pending action' : '',
+  timestamp: conversation.started_at,
+  messageCount: conversation.message_count || 0,
+  isActive: conversation.is_active,
+})
+
+const mapBackendMessage = (message: BackendMessage): import('../types').ChatMessage => {
+  const senderType = String(message.sender_type || '').toLowerCase()
+  const sender = senderType === 'ai'
+    ? 'ai'
+    : senderType === 'agent'
+      ? 'system'
+      : 'user'
+
+  return {
+    id: String(message.id),
+    content: message.message_text || '',
+    sender,
+    timestamp: message.created_at,
+    attachments: (message.attachments || []).map((attachment) => ({
+      id: String(attachment.id),
+      name: attachment.filename,
+      url: '',
+      type: attachment.content_type,
+      size: attachment.size_bytes,
+    })),
   }
 }
 
-export async function createConversation(title: string): Promise<CreateConversationResponse> {
-  const { data } = await api.post<CreateConversationResponse>(
-    API_ENDPOINTS.chat.conversations,
-    { title }
+export async function fetchConversationsPage({
+  page = 1,
+  limit = 30,
+  customerEmail,
+  search,
+}: {
+  page?: number
+  limit?: number
+  customerEmail?: string
+  search?: string
+}): Promise<ConversationsPage> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (customerEmail) params.set('customer_email', customerEmail)
+  if (search) params.set('search', search)
+
+  const { data } = await api.get<{ items: BackendConversation[]; meta: PageMeta }>(
+    `${API_ENDPOINTS.chat.conversations}?${params.toString()}`
   )
-  return data
+
+  return {
+    items: (data.items || []).map(mapBackendConversation),
+    meta: data.meta,
+  }
+}
+
+export async function fetchConversations(): Promise<Conversation[]> {
+  const firstPage = await fetchConversationsPage({ page: 1, limit: 30 })
+  return firstPage.items
+}
+
+export async function fetchConversationDetail(conversationId: string): Promise<ConversationDetail> {
+  const { data } = await api.get<BackendConversation>(
+    `${API_ENDPOINTS.chat.conversationDetail(conversationId)}?messages_page=1&messages_limit=100`
+  )
+  return {
+    ...mapBackendConversation(data),
+    messages: (data.messages || []).map(mapBackendMessage),
+    messagesMeta: data.messages_meta,
+  }
+}
+
+export async function createConversation(payload: {
+  sessionId: string
+  customerEmail: string
+  customerName: string
+  externalCustomerId?: string
+}): Promise<CreateConversationResponse> {
+  const { data } = await api.post<BackendConversation>(
+    API_ENDPOINTS.chat.conversations,
+    {
+      session_id: payload.sessionId,
+      customer_email: payload.customerEmail,
+      customer_name: payload.customerName,
+      external_customer_id: payload.externalCustomerId,
+    }
+  )
+  const conversation = mapBackendConversation(data)
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    created_at: conversation.timestamp,
+  }
 }
 
 export async function deleteConversation(conversationId: string): Promise<{ message: string }> {
@@ -122,66 +249,13 @@ export async function updateConversation(
   conversationId: string,
   updates: Partial<Conversation>
 ): Promise<Conversation> {
-  const { data } = await api.put<Conversation>(
+  const { data } = await api.patch<BackendConversation>(
     API_ENDPOINTS.chat.conversationDetail(conversationId),
-    updates
+    {
+      customer_name: updates.customerName,
+      is_active: updates.isActive,
+    }
   )
-  return data
+  return mapBackendConversation(data)
 }
 
-// ============================================================
-// Demo Data (for development/preview)
-// ============================================================
-
-function getDemoConversations(): Conversation[] {
-  const now = new Date()
-  return [
-    {
-      id: 'conv-1',
-      title: 'Password Reset Help',
-      preview: 'I need to reset my account password...',
-      timestamp: new Date(now.getTime() - 5 * 60000).toISOString(),
-      messageCount: 8,
-      isPinned: true,
-    },
-    {
-      id: 'conv-2',
-      title: 'Billing Inquiry',
-      preview: 'Can you explain the charges on my invoice?',
-      timestamp: new Date(now.getTime() - 2 * 3600000).toISOString(),
-      messageCount: 12,
-      isFavorite: true,
-    },
-    {
-      id: 'conv-3',
-      title: 'API Integration Support',
-      preview: 'How do I authenticate with the REST API?',
-      timestamp: new Date(now.getTime() - 24 * 3600000).toISOString(),
-      messageCount: 24,
-    },
-    {
-      id: 'conv-4',
-      title: 'Feature Request: Dark Mode',
-      preview: 'It would be great to have a dark mode option...',
-      timestamp: new Date(now.getTime() - 48 * 3600000).toISOString(),
-      messageCount: 6,
-      folder: 'Feedback',
-    },
-    {
-      id: 'conv-5',
-      title: 'Technical Troubleshooting',
-      preview: 'Getting error 500 on the dashboard...',
-      timestamp: new Date(now.getTime() - 72 * 3600000).toISOString(),
-      messageCount: 18,
-      folder: 'Technical',
-    },
-    {
-      id: 'conv-6',
-      title: 'Account Upgrade Questions',
-      preview: 'What features come with the Pro plan?',
-      timestamp: new Date(now.getTime() - 7 * 24 * 3600000).toISOString(),
-      messageCount: 10,
-      isArchived: true,
-    },
-  ]
-}

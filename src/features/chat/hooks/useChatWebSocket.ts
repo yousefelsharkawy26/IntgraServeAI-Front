@@ -50,6 +50,7 @@ export interface ChatWebSocketOptions {
   customerEmail: string
   customerName: string
   token?: string | null
+  sessionId?: string | null
 }
 
 export interface UseChatWebSocketReturn {
@@ -62,7 +63,7 @@ export interface UseChatWebSocketReturn {
   conversationId: string | null
   connect: () => void
   disconnect: () => void
-  sendMessage: (content: string) => void
+  sendMessage: (content: string) => boolean
   sendGenerate: (content: string) => void
   editMessage: (messageId: string, newContent: string) => void
   removeMessage: (messageId: string) => void
@@ -78,7 +79,9 @@ export interface UseChatWebSocketReturn {
    * The backend is the single source of truth.
    */
   sendToolResult: (toolCallId: string, status: ToolResultStatus, payload?: unknown) => void
+  hydrateMessages: (messages: ChatMessage[]) => void
   clearMessages: () => void
+  resetChatState: () => void
   stopGeneration: () => void
 }
 
@@ -114,7 +117,7 @@ function getOrCreateSessionId(): string {
 // Hook
 // -------------------------------------------------------
 
-export function useChatWebSocket({ customerEmail, customerName, token }: ChatWebSocketOptions): UseChatWebSocketReturn {
+export function useChatWebSocket({ customerEmail, customerName, token, sessionId }: ChatWebSocketOptions): UseChatWebSocketReturn {
   // ---- State ----
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
@@ -126,7 +129,7 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
 
   // ---- Refs ----
   const wsRef = useRef<WebSocket | null>(null)
-  const sessionIdRef = useRef(getOrCreateSessionId())
+  const sessionIdRef = useRef(sessionId || getOrCreateSessionId())
   const conversationIdRef = useRef<string | null>(null)
   const aiMsgIdRef = useRef<string | null>(null)
   const aiBufferRef = useRef('')
@@ -146,6 +149,12 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
   const resultSentRef = useRef(false)
   // Marks that we're stopping generation (prevents premature cleanup)
   const stoppingRef = useRef(false)
+
+  useEffect(() => {
+    if (sessionId) {
+      sessionIdRef.current = sessionId
+    }
+  }, [sessionId])
 
   // -------------------------------------------------------
   // rAF-batched flush of streaming tokens
@@ -703,7 +712,7 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
     ws.onerror = () => {
       ws.close()
     }
-  }, [customerEmail, customerName, token, scheduleFlush, flushStreamingTokens, finalizeStreamingMessages, finalizeRunningTools, updateToolStatus])
+  }, [customerEmail, customerName, token, sessionId, scheduleFlush, flushStreamingTokens, finalizeStreamingMessages, finalizeRunningTools, updateToolStatus])
 
   // ---- Disconnect ----
 
@@ -713,9 +722,6 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
       reconnectTimerRef.current = null
     }
     if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'end' }))
-      }
       wsRef.current.close()
       wsRef.current = null
     }
@@ -725,10 +731,10 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
 
   // ---- Send Message ----
 
-  const sendMessage = useCallback((content: string) => {
-    if (!content.trim()) return
+  const sendMessage = useCallback((content: string): boolean => {
+    if (!content.trim()) return false
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false
 
     const userMsg: ChatMessage = {
       id: `user-${generateId()}`,
@@ -742,6 +748,7 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
     confirmSentRef.current = false
 
     ws.send(JSON.stringify({ type: 'chat', content: content.trim() }))
+    return true
   }, [])
 
   // ---- Send Generate ----
@@ -923,14 +930,31 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
     setMessages([])
     setToolCalls([])
     setActiveTool(null)
+    setPendingAction(null)
+    setIsTyping(false)
     aiMsgIdRef.current = null
     aiBufferRef.current = ''
     pendingTokensRef.current = ''
     rafPendingRef.current = false
     confirmSentRef.current = false
+    resultSentRef.current = false
     currentToolCallRef.current = null
     activeToolCallIdRef.current = null
+    intendedTerminalStatesRef.current.clear()
   }, [])
+
+  const hydrateMessages = useCallback((nextMessages: ChatMessage[]) => {
+    clearMessages()
+    setMessages(nextMessages)
+  }, [clearMessages])
+
+  const resetChatState = useCallback(() => {
+    disconnect()
+    clearMessages()
+    setConversationId(null)
+    conversationIdRef.current = null
+    sessionIdRef.current = sessionId || getOrCreateSessionId()
+  }, [clearMessages, disconnect, sessionId])
 
   // ---- Lifecycle ----
 
@@ -958,7 +982,9 @@ export function useChatWebSocket({ customerEmail, customerName, token }: ChatWeb
     removeMessage,
     confirmAction,
     sendToolResult,
+    hydrateMessages,
     clearMessages,
+    resetChatState,
     stopGeneration,
   }
 }

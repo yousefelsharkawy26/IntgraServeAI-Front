@@ -1,26 +1,35 @@
 // ============================================================
 // Chat Sidebar
-// Modern sidebar with conversations, search, folders, and navigation
+// Modern sidebar with infinite conversations, search, folders, and navigation
 // ============================================================
 
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   Search, Plus, Pin, Star, Archive, MessageSquare,
-  X, Settings, PanelLeft, PanelLeftClose, Sparkles,
-  Inbox, HelpCircle,
+  X, Settings, PanelLeftClose, Sparkles,
+  HelpCircle, Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
-import type { Conversation } from '../types'
+import type { Conversation, ConversationFilter } from '../types'
 
 interface ChatSidebarProps {
   conversations: Conversation[]
   activeId: string | null
+  activeFilter: ConversationFilter
+  searchQuery: string
+  isLoading?: boolean
+  isFetchingMore?: boolean
+  hasMore?: boolean
   onSelect: (id: string) => void
   onNewChat: () => void
+  onFilterChange: (filter: ConversationFilter) => void
+  onSearchChange: (query: string) => void
+  onLoadMore: () => void
   onPin: (id: string) => void
   onFavorite: (id: string) => void
+  onArchive: (id: string) => void
   collapsed: boolean
   onToggleCollapse: () => void
 }
@@ -28,58 +37,28 @@ interface ChatSidebarProps {
 export const ChatSidebar = React.memo(function ChatSidebar({
   conversations,
   activeId,
+  activeFilter,
+  searchQuery,
+  isLoading,
+  isFetchingMore,
+  hasMore,
   onSelect,
   onNewChat,
+  onFilterChange,
+  onSearchChange,
+  onLoadMore,
   onPin,
   onFavorite,
+  onArchive,
   collapsed,
   onToggleCollapse,
 }: ChatSidebarProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pinned' | 'favorites' | 'archived'>('all')
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
-  // Filter conversations
-  const filtered = useMemo(() => {
-    let result = [...(conversations ?? [])]
-
-    // Apply filter
-    switch (activeFilter) {
-      case 'pinned':
-        result = result.filter((c) => c.isPinned)
-        break
-      case 'favorites':
-        result = result.filter((c) => c.isFavorite)
-        break
-      case 'archived':
-        result = result.filter((c) => c.isArchived)
-        break
-      default:
-        result = result.filter((c) => !c.isArchived)
-    }
-
-    // Apply search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (c) =>
-          c.title.toLowerCase().includes(q) ||
-          c.preview.toLowerCase().includes(q)
-      )
-    }
-
-    // Sort: pinned first, then by timestamp
-    return result.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1
-      if (!a.isPinned && b.isPinned) return 1
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    })
-  }, [conversations, activeFilter, searchQuery])
-
-  // Group by time
   const grouped = useMemo(() => {
     const groups: Record<string, Conversation[]> = {}
 
-    filtered.forEach((conv) => {
+    conversations.forEach((conv) => {
       const date = new Date(conv.timestamp)
       const now = new Date()
       const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
@@ -96,26 +75,28 @@ export const ChatSidebar = React.memo(function ChatSidebar({
     })
 
     return groups
-  }, [filtered])
+  }, [conversations])
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || !hasMore) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isFetchingMore) {
+          onLoadMore()
+        }
+      },
+      { root: target.parentElement, rootMargin: '280px 0px' }
+    )
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [hasMore, isFetchingMore, onLoadMore])
 
   // Collapsed state
   if (collapsed) {
-    return (
-      <motion.aside
-        aria-label="Conversations sidebar (collapsed)"
-        initial={{ width: 0 }}
-        animate={{ width: 64 }}
-        className="flex flex-col items-center border-r bg-card py-3 gap-2 shrink-0"
-      >
-        <SidebarIconButton icon={<PanelLeft className="h-5 w-5" />} label="Expand sidebar" onClick={onToggleCollapse} />
-        <div className="w-8 h-px bg-border my-1" aria-hidden="true" />
-        <SidebarIconButton icon={<Plus className="h-5 w-5" />} label="New chat" onClick={onNewChat} />
-        <SidebarIconButton icon={<Inbox className="h-5 w-5" />} label="All conversations" onClick={() => setActiveFilter('all')} active={activeFilter === 'all'} />
-        <SidebarIconButton icon={<Pin className="h-5 w-5" />} label="Pinned" onClick={() => setActiveFilter('pinned')} active={activeFilter === 'pinned'} />
-        <SidebarIconButton icon={<Star className="h-5 w-5" />} label="Favorites" onClick={() => setActiveFilter('favorites')} active={activeFilter === 'favorites'} />
-        <SidebarIconButton icon={<Archive className="h-5 w-5" />} label="Archived" onClick={() => setActiveFilter('archived')} active={activeFilter === 'archived'} />
-      </motion.aside>
-    )
+    return null
   }
 
   return (
@@ -135,16 +116,14 @@ export const ChatSidebar = React.memo(function ChatSidebar({
           </div>
           <span className="font-semibold text-sm">IntegraServe</span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Collapse sidebar"
-          >
-            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Collapse sidebar"
+        >
+          <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
 
       {/* New chat button */}
@@ -173,7 +152,7 @@ export const ChatSidebar = React.memo(function ChatSidebar({
           <input
             type="search"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search conversations…"
             aria-label="Search conversations"
             className={cn(
@@ -185,7 +164,7 @@ export const ChatSidebar = React.memo(function ChatSidebar({
           {searchQuery && (
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
+              onClick={() => onSearchChange('')}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
               aria-label="Clear search"
             >
@@ -195,7 +174,7 @@ export const ChatSidebar = React.memo(function ChatSidebar({
         </div>
       </div>
 
-      {/* Filter tabs — exposed as a tablist for screen-reader users. */}
+      {/* Filter tabs */}
       <div className="px-3 pb-2">
         <div className="flex gap-1 p-0.5 rounded-lg bg-muted" role="tablist" aria-label="Filter conversations">
           {(['all', 'pinned', 'favorites', 'archived'] as const).map((filter) => {
@@ -207,7 +186,7 @@ export const ChatSidebar = React.memo(function ChatSidebar({
                 role="tab"
                 aria-selected={activeFilter === filter}
                 aria-pressed={activeFilter === filter}
-                onClick={() => setActiveFilter(filter)}
+                onClick={() => onFilterChange(filter)}
                 className={cn(
                   'flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-[11px] font-medium transition-all',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -226,7 +205,11 @@ export const ChatSidebar = React.memo(function ChatSidebar({
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-1 scrollbar-thin">
-        {Object.keys(grouped).length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : Object.keys(grouped).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <MessageSquare className="h-8 w-8 text-muted-foreground/30 mb-2" aria-hidden="true" />
             <p className="text-xs text-muted-foreground">
@@ -251,10 +234,21 @@ export const ChatSidebar = React.memo(function ChatSidebar({
                   onSelect={onSelect}
                   onPin={onPin}
                   onFavorite={onFavorite}
+                  onArchive={onArchive}
                 />
               ))}
             </div>
           ))
+        )}
+
+        <div ref={loadMoreRef} className="h-8" aria-hidden="true" />
+        {isFetchingMore && (
+          <div className="flex items-center justify-center py-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        )}
+        {!hasMore && conversations.length > 0 && (
+          <p className="py-2 text-center text-[10px] text-muted-foreground/70">End of conversations</p>
         )}
       </div>
 
@@ -269,15 +263,10 @@ export const ChatSidebar = React.memo(function ChatSidebar({
   )
 })
 
-// ============================================================
-// Conversation Item
-// ============================================================
-
 interface ConversationItemProps {
   conversation: Conversation
   isActive: boolean
   onSelect: (id: string) => void
-  onDelete: (id: string) => void
   onPin: (id: string) => void
   onFavorite: (id: string) => void
   onArchive: (id: string) => void
@@ -289,7 +278,8 @@ const ConversationItem = React.memo(function ConversationItem({
   onSelect,
   onPin,
   onFavorite,
-}: Omit<ConversationItemProps, 'onDelete' | 'onArchive'>) {
+  onArchive,
+}: ConversationItemProps) {
   return (
     <div className="relative group/item">
       <motion.button
@@ -321,6 +311,9 @@ const ConversationItem = React.memo(function ConversationItem({
             {conversation.isPinned && (
               <Pin className="h-3 w-3 text-amber-500 shrink-0" aria-hidden="true" />
             )}
+            {conversation.isFavorite && (
+              <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" aria-hidden="true" />
+            )}
           </div>
           {conversation.preview && (
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">
@@ -337,7 +330,6 @@ const ConversationItem = React.memo(function ConversationItem({
           </div>
         </div>
 
-        {/* Quick actions — visible on hover OR keyboard focus within */}
         <div className={cn(
           'absolute right-1 top-1 flex items-center gap-0.5 opacity-0 transition-opacity',
           'bg-card shadow-sm rounded-md border',
@@ -361,40 +353,20 @@ const ConversationItem = React.memo(function ConversationItem({
           >
             <Star className={cn('h-3 w-3', conversation.isFavorite && 'text-amber-500 fill-amber-500')} aria-hidden="true" />
           </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onArchive(conversation.id) }}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={conversation.isArchived ? `Unarchive ${conversation.title}` : `Archive ${conversation.title}`}
+            aria-pressed={conversation.isArchived}
+          >
+            <Archive className={cn('h-3 w-3', conversation.isArchived && 'text-blue-500')} aria-hidden="true" />
+          </button>
         </div>
       </motion.button>
     </div>
   )
 })
-
-// ============================================================
-// Sidebar Helper Components
-// ============================================================
-
-function SidebarIconButton({ icon, label, onClick, active }: {
-  icon: React.ReactNode
-  label: string
-  onClick?: () => void
-  active?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
-      className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-        'text-muted-foreground hover:bg-muted hover:text-foreground',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        active && 'bg-primary/10 text-primary',
-      )}
-    >
-      {icon}
-    </button>
-  )
-}
 
 function SidebarAction({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (

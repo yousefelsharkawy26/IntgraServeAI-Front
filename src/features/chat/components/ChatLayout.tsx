@@ -5,8 +5,9 @@
 
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Plus } from 'lucide-react'
 import { ChatSidebar } from './ChatSidebar'
-import type { Conversation } from '../types'
+import type { Conversation, ConversationFilter } from '../types'
 
 interface ChatLayoutProps {
   children: React.ReactNode
@@ -14,10 +15,19 @@ interface ChatLayoutProps {
   onToggleSidebar: () => void
   conversations: Conversation[]
   activeConversationId: string | null
+  activeFilter: ConversationFilter
+  searchQuery: string
+  isLoadingConversations?: boolean
+  isFetchingMoreConversations?: boolean
+  hasMoreConversations?: boolean
   onSelectConversation: (id: string) => void
   onNewChat: () => void
+  onFilterChange: (filter: ConversationFilter) => void
+  onSearchChange: (query: string) => void
+  onLoadMoreConversations: () => void
   onPinConversation: (id: string) => void
   onFavoriteConversation: (id: string) => void
+  onArchiveConversation: (id: string) => void
 }
 
 export const ChatLayout = React.memo(function ChatLayout({
@@ -26,10 +36,19 @@ export const ChatLayout = React.memo(function ChatLayout({
   onToggleSidebar,
   conversations,
   activeConversationId,
+  activeFilter,
+  searchQuery,
+  isLoadingConversations,
+  isFetchingMoreConversations,
+  hasMoreConversations,
   onSelectConversation,
   onNewChat,
+  onFilterChange,
+  onSearchChange,
+  onLoadMoreConversations,
   onPinConversation,
   onFavoriteConversation,
+  onArchiveConversation,
 }: ChatLayoutProps) {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
@@ -39,10 +58,19 @@ export const ChatLayout = React.memo(function ChatLayout({
           <ChatSidebar
             conversations={conversations}
             activeId={activeConversationId}
+            activeFilter={activeFilter}
+            searchQuery={searchQuery}
+            isLoading={isLoadingConversations}
+            isFetchingMore={isFetchingMoreConversations}
+            hasMore={hasMoreConversations}
             onSelect={onSelectConversation}
             onNewChat={onNewChat}
+            onFilterChange={onFilterChange}
+            onSearchChange={onSearchChange}
+            onLoadMore={onLoadMoreConversations}
             onPin={onPinConversation}
             onFavorite={onFavoriteConversation}
+            onArchive={onArchiveConversation}
             collapsed={false}
             onToggleCollapse={onToggleSidebar}
           />
@@ -51,7 +79,7 @@ export const ChatLayout = React.memo(function ChatLayout({
 
       {/* Collapsed sidebar (just icons) */}
       {sidebarCollapsed && (
-        <CollapsedSidebar onExpand={onToggleSidebar} />
+        <CollapsedSidebar onExpand={onToggleSidebar} onNewChat={onNewChat} />
       )}
 
       {/* Main content */}
@@ -63,7 +91,7 @@ export const ChatLayout = React.memo(function ChatLayout({
 })
 
 // Collapsed sidebar with just icons
-function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
+function CollapsedSidebar({ onExpand, onNewChat }: { onExpand: () => void; onNewChat: () => void }) {
   return (
     <motion.div
       initial={{ width: 0 }}
@@ -80,8 +108,7 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
         </svg>
       </button>
       <div className="w-8 h-px bg-border my-1" />
-      <IconButton icon={<span className="text-lg">+</span>} label="New chat" />
-      <IconButton icon={<span className="text-sm">@</span>} label="Search" />
+      <IconButton icon={<Plus className="h-5 w-5" />} label="New chat" onClick={onNewChat} />
     </motion.div>
   )
 }

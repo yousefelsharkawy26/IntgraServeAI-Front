@@ -109,6 +109,7 @@ export function AppRoutes() {
             }
           />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:conversationId" element={<ChatPage />} />
         </Route>
 
         {/* Redirect root */}

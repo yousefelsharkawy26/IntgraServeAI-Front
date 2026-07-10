@@ -53,12 +53,18 @@ export interface ToolCallInfo {
   endTime?: string
 }
 
+export type ConversationFilter = 'all' | 'pinned' | 'favorites' | 'archived'
+
 export interface Conversation {
   id: string
   title: string
   preview: string
   timestamp: string
   messageCount: number
+  sessionId?: string
+  customerEmail?: string
+  customerName?: string
+  isActive?: boolean
   isPinned?: boolean
   isFavorite?: boolean
   isArchived?: boolean
