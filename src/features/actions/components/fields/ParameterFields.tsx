@@ -26,7 +26,6 @@ export function ParameterFields({ basePath, actionType }: ParameterFieldsProps) 
     watch,
     setValue,
     control,
-    formState: { errors },
   } = useFormContext<ActionFormData>()
 
   const config = ACTION_TYPE_CONFIGS[actionType]

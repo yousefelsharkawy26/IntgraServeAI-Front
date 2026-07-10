@@ -49,6 +49,7 @@ import { diagnostics } from '../tools/diagnostics'
 export interface ChatWebSocketOptions {
   customerEmail: string
   customerName: string
+  token?: string | null
 }
 
 export interface UseChatWebSocketReturn {
@@ -89,6 +90,17 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function buildWebSocketUrl(path: string, token?: string | null): string {
+  const base = typeof window !== 'undefined' ? window.location.href : 'http://localhost'
+  const url = new URL(path, base)
+
+  if (url.protocol === 'https:') url.protocol = 'wss:'
+  else if (url.protocol === 'http:') url.protocol = 'ws:'
+
+  if (token) url.searchParams.set('token', token)
+  return url.toString()
+}
+
 function getOrCreateSessionId(): string {
   const key = 'integra-chat-session'
   const stored = localStorage.getItem(key)
@@ -102,7 +114,7 @@ function getOrCreateSessionId(): string {
 // Hook
 // -------------------------------------------------------
 
-export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketOptions): UseChatWebSocketReturn {
+export function useChatWebSocket({ customerEmail, customerName, token }: ChatWebSocketOptions): UseChatWebSocketReturn {
   // ---- State ----
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
@@ -258,7 +270,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return
 
     setConnectionStatus('connecting')
-    const wsUrl = `${WS_API_BASE_URL}${API_ENDPOINTS.chat.ws}`
+    const wsUrl = buildWebSocketUrl(`${WS_API_BASE_URL}${API_ENDPOINTS.chat.ws}`, token)
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
@@ -270,6 +282,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
         session_id: sessionIdRef.current,
         customer_email: customerEmail,
         customer_name: customerName,
+        ...(token ? { token } : {}),
       }))
 
       diagnostics.info('transport', 'WebSocket connected, handshake sent')
@@ -691,7 +704,7 @@ export function useChatWebSocket({ customerEmail, customerName }: ChatWebSocketO
     ws.onerror = () => {
       ws.close()
     }
-  }, [customerEmail, customerName, scheduleFlush, flushStreamingTokens, finalizeRunningTools, updateToolStatus])
+  }, [customerEmail, customerName, token, scheduleFlush, flushStreamingTokens, finalizeRunningTools, updateToolStatus])
 
   // ---- Disconnect ----
 

@@ -1,8 +1,20 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
 
-export const WS_BASE_URL = SERVER_URL.replace(/^http/, 'ws')
-export const WS_API_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
+const toWebSocketUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:') parsed.protocol = 'wss:'
+    else if (parsed.protocol === 'http:') parsed.protocol = 'ws:'
+    return parsed.toString().replace(/\/$/, '')
+  } catch {
+    // Preserve prior behavior for relative or otherwise non-standard URLs.
+    return url.replace(/^http/, 'ws')
+  }
+}
+
+export const WS_BASE_URL = toWebSocketUrl(SERVER_URL)
+export const WS_API_BASE_URL = toWebSocketUrl(API_BASE_URL)
 
 export const API_ENDPOINTS = {
   auth: {
@@ -36,7 +48,7 @@ export const API_ENDPOINTS = {
     list: '/actions',
     detail: (id: string) => `/actions/${id}`,
     toggle: (id: string) => `/actions/${id}/toggle`,
-    validate: (id: string) => `/actions/${id}/validate`,
+    validate: () => '/actions/validate',
   },
   backups: {
     list: '/actions/backups',

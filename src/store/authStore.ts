@@ -26,6 +26,23 @@ const initialState: AuthState = {
   isLoading: true,
 }
 
+const DISPLAY_TO_BACKEND_ROLE: Record<string, string> = {
+  Administrator: 'Admin',
+  Manager: 'Tech User',
+  'Support Agent': 'Support User',
+}
+
+const migrateUserRoles = (user: User | null): User | null => {
+  if (!user) return user
+  if (Array.isArray(user.roles) && user.roles.length > 0) return user
+
+  const fallbackRole = DISPLAY_TO_BACKEND_ROLE[user.role] || user.role || 'Viewer'
+  return {
+    ...user,
+    roles: [fallbackRole],
+  }
+}
+
 export const useAuthStore = create<AuthState & AuthActions>()(
   persist(
     (set) => ({
@@ -33,7 +50,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       login: (user, accessToken, refreshToken) =>
         set({
-          user,
+          user: migrateUserRoles(user),
           accessToken,
           refreshToken,
           isAuthenticated: true,
@@ -46,7 +63,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           isLoading: false,
         }),
 
-      setUser: (user) => set({ user }),
+      setUser: (user) => set({ user: migrateUserRoles(user) }),
 
       updateTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken }),
@@ -56,11 +73,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     {
       name: 'integra-auth',
       partialize: (state) => ({
-        user: state.user,
+        user: migrateUserRoles(state.user),
         isAuthenticated: state.isAuthenticated,
         // tokens kept in memory only — never persisted
       }),
       onRehydrateStorage: () => (state) => {
+        if (state?.user) {
+          state.setUser(state.user)
+        }
         state?.setLoading(false)
       },
     }

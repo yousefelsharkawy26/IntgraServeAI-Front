@@ -79,7 +79,7 @@ export function AppRoutes() {
           <Route
             path="/actions"
             element={
-              <ProtectedRoute requiredRoles={['Administrator', 'Manager']}>
+              <ProtectedRoute requiredRoles={['Admin', 'Tech User']}>
                 <ActionsList />
               </ProtectedRoute>
             }
@@ -87,7 +87,7 @@ export function AppRoutes() {
           <Route
             path="/backups"
             element={
-              <ProtectedRoute requiredRoles={['Administrator', 'Manager']}>
+              <ProtectedRoute requiredRoles={['Admin', 'Tech User']}>
                 <BackupsView />
               </ProtectedRoute>
             }
@@ -95,7 +95,7 @@ export function AppRoutes() {
           <Route
             path="/users"
             element={
-              <ProtectedRoute requiredRoles={['Administrator']}>
+              <ProtectedRoute requiredRoles={['Admin']}>
                 <UsersList />
               </ProtectedRoute>
             }
@@ -103,7 +103,7 @@ export function AppRoutes() {
           <Route
             path="/roles"
             element={
-              <ProtectedRoute requiredRoles={['Administrator']}>
+              <ProtectedRoute requiredRoles={['Admin']}>
                 <RolesGrid />
               </ProtectedRoute>
             }

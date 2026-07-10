@@ -91,8 +91,8 @@ export function useActionMutations() {
   })
 
   const deleteAction = useMutation({
-    mutationFn: (id: string) => id,
-    onSuccess: (_data, id) => {
+    mutationFn: (id: string) => actionService.deleteAction(id),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.actions })
       addToast({ type: 'success', title: 'Action deleted', message: 'Action removed successfully.' })
     },

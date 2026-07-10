@@ -1,7 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 interface Props {
   children: ReactNode
+  navigate?: (path: string) => void
 }
 
 interface State {
@@ -25,7 +27,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private handleReset = () => {
     this.setState({ hasError: false, error: null })
-    window.location.href = '/dashboard'
+    if (this.props.navigate) {
+      this.props.navigate('/dashboard')
+      return
+    }
+    window.location.assign('/dashboard')
   }
 
   public render() {
@@ -75,4 +81,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-export default ErrorBoundary
+export function AppErrorBoundary({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
+  return <ErrorBoundary navigate={navigate}>{children}</ErrorBoundary>
+}
+
+export default AppErrorBoundary

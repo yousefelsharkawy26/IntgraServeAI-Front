@@ -1,34 +1,42 @@
 import type { User } from '@/types/auth'
 import type { UserActivityLog } from '@/types/user'
 
+const ROLE_DISPLAY_NAME: Record<string, string> = {
+  Admin: 'Administrator',
+  'Tech User': 'Manager',
+  'Support User': 'Support Agent',
+}
+
+export const mapBackendRoleToDisplayRole = (role: string): string => ROLE_DISPLAY_NAME[role] || role
+
+const normalizeRoles = (u: any): string[] => {
+  if (Array.isArray(u?.roles)) {
+    return u.roles.filter((role: unknown): role is string => typeof role === 'string' && role.trim().length > 0)
+  }
+
+  if (typeof u?.role === 'string' && u.role.trim().length > 0) {
+    return [u.role]
+  }
+
+  return []
+}
+
 export const mapBackendUserToFrontend = (u: any): User => {
   if (!u) return {} as User
-  
-  // Backend returns roles as list of role strings (e.g. ['Admin', 'Support User'])
-  // Frontend expects role as a single string (e.g. 'Administrator', 'Manager', 'Support Agent')
-  // We'll map backend role names to frontend role names
-  let role = 'Viewer'
-  if (u.roles && u.roles.length > 0) {
-    const primaryRole = u.roles[0]
-    if (primaryRole === 'Admin') role = 'Administrator'
-    else if (primaryRole === 'Tech User') role = 'Manager' // maps to Manager or similar
-    else if (primaryRole === 'Support User') role = 'Support Agent'
-    else role = primaryRole
-  } else if (u.role) {
-    if (u.role === 'Admin') role = 'Administrator'
-    else if (u.role === 'Tech User') role = 'Manager'
-    else if (u.role === 'Support User') role = 'Support Agent'
-    else role = u.role
-  }
+
+  const roles = normalizeRoles(u)
+  const primaryRole = roles[0] || 'Viewer'
+  const role = mapBackendRoleToDisplayRole(primaryRole)
 
   return {
     id: String(u.id || ''),
     email: u.email || '',
-    name: u.full_name || '',
+    name: u.full_name || u.name || '',
     avatar: u.avatar || undefined,
     role,
+    roles,
     department: u.department || (role === 'Administrator' ? 'Engineering' : 'Support'),
-    status: u.is_active ? 'active' : 'inactive',
+    status: u.is_active === false ? 'inactive' : 'active',
     createdAt: u.created_at || '',
     updatedAt: u.updated_at || '',
   }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ACTION_TYPE_CONFIGS, type ActionType } from '@/types/action'
+import type { FormResponseConfig } from '@/types/action'
 
 // ── Shared sub-schemas ──────────────────────────────────────────────────────
 

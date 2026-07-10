@@ -21,14 +21,14 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Administrator', 'Manager', 'Support Agent'] },
-  { path: '/tickets', label: 'Tickets', icon: Ticket, roles: ['Administrator', 'Manager', 'Support Agent'] },
-  { path: '/actions', label: 'Actions', icon: Zap, roles: ['Administrator', 'Manager'] },
-  { path: '/backups', label: 'Backups', icon: Database, roles: ['Administrator', 'Manager'] },
-  { path: '/users', label: 'Users', icon: Users, roles: ['Administrator'] },
-  { path: '/roles', label: 'Roles', icon: Shield, roles: ['Administrator'] },
-  { path: '/profile', label: 'Profile', icon: UserCircle, roles: ['Administrator', 'Manager', 'Support Agent'] },
-  { path: '/chat', label: 'Chat Widget', icon: MessageSquare, roles: ['Administrator', 'Manager', 'Support Agent'] },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Tech User', 'Support User'] },
+  { path: '/tickets', label: 'Tickets', icon: Ticket, roles: ['Admin', 'Tech User', 'Support User'] },
+  { path: '/actions', label: 'Actions', icon: Zap, roles: ['Admin', 'Tech User'] },
+  { path: '/backups', label: 'Backups', icon: Database, roles: ['Admin', 'Tech User'] },
+  { path: '/users', label: 'Users', icon: Users, roles: ['Admin'] },
+  { path: '/roles', label: 'Roles', icon: Shield, roles: ['Admin'] },
+  { path: '/profile', label: 'Profile', icon: UserCircle, roles: ['Admin', 'Tech User', 'Support User'] },
+  { path: '/chat', label: 'Chat Widget', icon: MessageSquare, roles: ['Admin', 'Tech User', 'Support User'] },
 ]
 
 const itemVariants = {
@@ -44,8 +44,8 @@ export function Sidebar() {
   const { isCollapsed, setCollapsed } = useSidebarStore()
   const { user, logout } = useAuthStore()
   const location = useLocation()
-  const userRole = user?.role || ''
-  const visibleNavItems = navItems.filter((item) => item.roles.includes(userRole))
+  const userRoles = user?.roles || []
+  const visibleNavItems = navItems.filter((item) => userRoles.some((role) => item.roles.includes(role)))
 
   return (
     <motion.aside

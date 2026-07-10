@@ -3,7 +3,10 @@ export interface User {
   email: string
   name: string
   avatar?: string
+  /** Primary/display role kept for backward compatibility. */
   role: string
+  /** Full backend role list used for authorization checks. */
+  roles: string[]
   department?: string
   status: 'active' | 'inactive'
   createdAt: string

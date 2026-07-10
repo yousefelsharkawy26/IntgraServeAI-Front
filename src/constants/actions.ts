@@ -1,4 +1,4 @@
-import { ACTION_TYPE_CONFIGS, type ActionType } from '@/types/action'
+import type { ActionType } from '@/types/action'
 
 // Legacy-compatible config for the list view (includes color info)
 export const ACTION_TYPE_CONFIG: Record<ActionType, { label: string; color: string; bgColor: string; description: string }> = {

@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const refreshResponse = await axios.post(
             `${API_BASE_URL}${API_ENDPOINTS.auth.refresh}`,
             {},
-            { withCredentials: true }
+            { withCredentials: true, timeout: 10000 }
           )
 
           const newAccessToken = refreshResponse.data.token
@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               headers: {
                 Authorization: `Bearer ${newAccessToken}`,
               },
+              timeout: 10000,
             }
           )
 

@@ -14,8 +14,8 @@ export const ticketService = {
     params.append('page', String(filters.page))
     params.append('limit', String(filters.limit))
 
-    const userRole = useAuthStore.getState().user?.role
-    const endpoint = userRole === 'Administrator' 
+    const userRoles = useAuthStore.getState().user?.roles || []
+    const endpoint = userRoles.includes('Admin') 
       ? '/tickets/admin/all' 
       : '/tickets/my-tickets'
 

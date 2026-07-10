@@ -4,6 +4,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useRef, useMemo } from 'react'
+import { Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   PanelLeft, CircleDot,
@@ -23,15 +24,11 @@ import type { PendingFile, ChatMessage } from '../types'
 import '../chat.css'
 import { ToolRenderer } from '../tools'
 import type { ToolTransport } from '../tools'
-// ============================================================
-// Demo user - replace with your auth system
-// ============================================================
-const DEMO_USER = {
-  email: 'demo@integraserve.ai',
-  name: 'Demo User',
-}
+import { useAuthStore } from '@/store/authStore'
 
 export default function ChatPage() {
+  const authUser = useAuthStore((s) => s.user)
+  const accessToken = useAuthStore((s) => s.accessToken)
   const sidebarOpen = useChatStore((s) => s.sidebarOpen)
   const conversations = useChatStore((s) => s.conversations)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
@@ -77,9 +74,18 @@ export default function ChatPage() {
     sendToolResult,
     stopGeneration,
   } = useChatWebSocket({
-    customerEmail: DEMO_USER.email,
-    customerName: DEMO_USER.name,
+    customerEmail: authUser?.email || '',
+    customerName: authUser?.name || 'Customer',
+    token: accessToken,
   })
+
+  const objectUrlsRef = useRef<Set<string>>(new Set())
+
+  const revokeObjectUrl = useCallback((url?: string) => {
+    if (!url || !objectUrlsRef.current.has(url)) return
+    URL.revokeObjectURL(url)
+    objectUrlsRef.current.delete(url)
+  }, [])
 
   // ---- Sync WebSocket state to store ----
   useEffect(() => {
@@ -100,9 +106,17 @@ export default function ChatPage() {
 
   // ---- Auto connect on mount ----
   useEffect(() => {
+    if (!authUser?.email) return
     connect()
     return () => disconnect()
-  }, [connect, disconnect])
+  }, [authUser?.email, connect, disconnect])
+
+  useEffect(() => {
+    return () => {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+      objectUrlsRef.current.clear()
+    }
+  }, [])
 
   // ---- Scroll to bottom on new messages ----
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -127,21 +141,30 @@ export default function ChatPage() {
     if (!content.trim() && pendingFiles.length === 0) return
     wsSendMessage(content)
     setInputValue('')
+    pendingFiles.forEach((file) => revokeObjectUrl(file.preview))
     clearPendingFiles()
-  }, [wsSendMessage, pendingFiles.length, setInputValue, clearPendingFiles])
+  }, [wsSendMessage, pendingFiles, setInputValue, clearPendingFiles, revokeObjectUrl])
 
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files) return
     Array.from(files).forEach((file) => {
       const id = `file-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+      const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : ''
+      if (preview) objectUrlsRef.current.add(preview)
       const pendingFile: PendingFile = {
         id,
         file,
-        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : '',
+        preview,
       }
       addPendingFile(pendingFile)
     })
   }, [addPendingFile])
+
+  const handleRemoveFile = useCallback((id: string) => {
+    const file = pendingFiles.find((pendingFile) => pendingFile.id === id)
+    revokeObjectUrl(file?.preview)
+    removePendingFile(id)
+  }, [pendingFiles, removePendingFile, revokeObjectUrl])
 
   const handleEditMessage = useCallback((id: string, content: string) => {
     wsEditMessage(id, content)
@@ -189,6 +212,10 @@ export default function ChatPage() {
     }),
     [sendToolResult]
   )
+
+  if (!authUser) {
+    return <Navigate to="/login" replace />
+  }
 
   // ---- Render ----
   return (
@@ -290,7 +317,7 @@ export default function ChatPage() {
           onStop={stopGeneration}
           pendingFiles={pendingFiles}
           onFileSelect={handleFileSelect}
-          onRemoveFile={removePendingFile}
+          onRemoveFile={handleRemoveFile}
           isTyping={isTyping}
           isConnected={isConnected}
         />

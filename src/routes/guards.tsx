@@ -7,6 +7,11 @@ interface ProtectedRouteProps {
   requiredRoles?: string[]
 }
 
+const hasRequiredRole = (userRoles: string[] | undefined, requiredRoles: string[]): boolean => {
+  if (!userRoles?.length) return false
+  return userRoles.some((role) => requiredRoles.includes(role))
+}
+
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user } = useAuthStore()
   const location = useLocation()
@@ -28,7 +33,7 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (requiredRoles && user && !requiredRoles.includes(user.role)) {
+  if (requiredRoles && user && !hasRequiredRole(user.roles, requiredRoles)) {
     return <Navigate to="/dashboard" replace />
   }
 

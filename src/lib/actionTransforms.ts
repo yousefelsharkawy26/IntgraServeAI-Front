@@ -11,7 +11,6 @@ import type {
 } from '@/types/action'
 import {
   defaultApiConfig,
-  defaultFormValues,
   defaultInternalConfig,
   defaultRpcConfig,
   defaultVectorConfig,
@@ -72,17 +71,6 @@ export function parametersFromDict(
 }
 
 // ── Helpers: response config ↔ form ──────────────────────────────────────────
-
-function responseValuesFromBackend(
-  values?: Record<string, { type: string; path: string }>,
-): ResponseValueEntry[] {
-  if (!values) return []
-  return Object.entries(values).map(([name, v]) => ({
-    name,
-    type: (v.type === 'integer' ? 'integer' : 'string') as 'string' | 'integer',
-    path: v.path,
-  }))
-}
 
 function responseValuesToBackend(
   entries: ResponseValueEntry[],
