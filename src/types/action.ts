@@ -220,3 +220,6 @@ export interface CreateActionData {
   parameters?: Record<string, ParameterDetail>
   response_config?: BackendResponseConfig
 }
+
+/** Payload accepted by the backend update schema. The action type is immutable. */
+export type UpdateActionData = Omit<CreateActionData, 'type'>

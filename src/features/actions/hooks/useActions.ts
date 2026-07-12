@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { actionService } from '@/services/action.service'
 import { useNotificationStore } from '@/store/notificationStore'
 import { QUERY_KEYS } from '@/constants/queryKeys'
-import type { ActionFilters, CreateActionData } from '@/types/action'
+import type { ActionFilters, UpdateActionData } from '@/types/action'
 
 /** Extract a human-readable error message from Axios error responses.
  *  The backend returns errors in multiple formats:
@@ -63,7 +63,7 @@ export function useActionMutations() {
   })
 
   const updateAction = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CreateActionData> }) => actionService.updateAction(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<UpdateActionData> }) => actionService.updateAction(id, data),
     onSuccess: (updatedAction, variables) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.actions })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.action(variables.id) })

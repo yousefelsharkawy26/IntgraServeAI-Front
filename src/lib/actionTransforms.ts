@@ -4,6 +4,7 @@ import type {
   ActionParameter,
   BackendResponseConfig,
   CreateActionData,
+  UpdateActionData,
   ExecutionConfig,
   ParameterDetail,
   ResponseValueEntry,
@@ -121,6 +122,13 @@ function defaultResponseConfig(type: string): FormResponseConfig {
   return cfg
 }
 
+function normalizeActionUrl(url: string): string {
+  const trimmed = url.trim()
+  const markdownLinkMatch = trimmed.match(/^\[(https?:\/\/[^\]]+)]\((https?:\/\/[^)]+)\)$/i)
+  if (markdownLinkMatch) return markdownLinkMatch[2]
+  return trimmed
+}
+
 // ── Form → API payload ───────────────────────────────────────────────────────
 
 export function buildCreatePayload(formData: ActionFormData): CreateActionData {
@@ -134,7 +142,7 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
       if (c) {
         execution_config.protocol = c.protocol
         execution_config.method = c.method
-        execution_config.url = c.url
+        execution_config.url = normalizeActionUrl(c.url)
         const headers = headersToDict(c.headers)
         execution_config.headers =
           Object.keys(headers).length > 0 ? headers : undefined
@@ -223,6 +231,19 @@ export function buildCreatePayload(formData: ActionFormData): CreateActionData {
     execution_config,
     parameters,
     response_config,
+  }
+}
+
+export function buildUpdatePayload(formData: ActionFormData): UpdateActionData {
+  const payload = buildCreatePayload(formData)
+  return {
+    name: payload.name,
+    description: payload.description,
+    active: payload.active,
+    requires_confirmation: payload.requires_confirmation,
+    execution_config: payload.execution_config,
+    parameters: payload.parameters,
+    response_config: payload.response_config,
   }
 }
 

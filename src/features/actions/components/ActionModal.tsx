@@ -10,7 +10,7 @@ import {
   defaultFormValues,
   type ActionFormData,
 } from '@/schemas/actionSchema'
-import { actionToFormData, buildCreatePayload } from '@/lib/actionTransforms'
+import { actionToFormData, buildCreatePayload, buildUpdatePayload } from '@/lib/actionTransforms'
 import { BasicInfoFields } from './fields/BasicInfoFields'
 import { ApiConfigFields } from './fields/ApiConfigFields'
 import { RpcConfigFields } from './fields/RpcConfigFields'
@@ -109,9 +109,10 @@ export function ActionModal({ open, onClose, action }: ActionModalProps) {
     const payload = buildCreatePayload(data)
 
     if (sourceAction) {
-      payload.active = sourceAction.status === 'active'
+      const updatePayload = buildUpdatePayload(data)
+      updatePayload.active = sourceAction.status === 'active'
       updateAction.mutate(
-        { id: sourceAction.id, data: payload },
+        { id: sourceAction.id, data: updatePayload },
         { onSuccess: onClose }
       )
       return

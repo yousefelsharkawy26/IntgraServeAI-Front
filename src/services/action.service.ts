@@ -1,7 +1,7 @@
 import api from './api'
 import { API_ENDPOINTS } from '@/constants/api'
 import { mapBackendActionToFrontend } from '@/mappers/action.mapper'
-import type { Action, CreateActionData, ActionFilters } from '@/types/action'
+import type { Action, CreateActionData, UpdateActionData, ActionFilters } from '@/types/action'
 
 export const actionService = {
   async getActions(filters?: ActionFilters): Promise<Action[]> {
@@ -41,12 +41,18 @@ export const actionService = {
     }
   },
 
-  async updateAction(id: string, action: Partial<CreateActionData>): Promise<Action> {
-    const payloadJson = JSON.stringify(action, null, 2)
+  async updateAction(id: string, action: Partial<UpdateActionData>): Promise<Action> {
+    // The backend update schema treats action.type as immutable and rejects it
+    // with 422 "Extra inputs are not permitted". Keep this service defensive in
+    // case any caller accidentally passes a create-shaped payload.
+    const sanitizedAction = { ...action } as Partial<CreateActionData>
+    delete sanitizedAction.type
+
+    const payloadJson = JSON.stringify(sanitizedAction, null, 2)
     console.log('[actionService] Updating action with payload:', payloadJson)
 
     try {
-      const { data } = await api.put<any>(API_ENDPOINTS.actions.detail(id), action)
+      const { data } = await api.put<any>(API_ENDPOINTS.actions.detail(id), sanitizedAction)
       return mapBackendActionToFrontend(data)
     } catch (error: any) {
       const status = error?.response?.status
@@ -54,7 +60,7 @@ export const actionService = {
       // PUT is explicitly unsupported/not found; do not retry validation or
       // business-logic failures because that could hide the real backend error.
       if (status === 404 || status === 405) {
-        const { data } = await api.patch<any>(API_ENDPOINTS.actions.detail(id), action)
+        const { data } = await api.patch<any>(API_ENDPOINTS.actions.detail(id), sanitizedAction)
         return mapBackendActionToFrontend(data)
       }
 
