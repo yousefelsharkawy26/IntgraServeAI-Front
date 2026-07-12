@@ -42,8 +42,29 @@ export const actionService = {
   },
 
   async updateAction(id: string, action: Partial<CreateActionData>): Promise<Action> {
-    const { data } = await api.patch<any>(API_ENDPOINTS.actions.detail(id), action)
-    return mapBackendActionToFrontend(data)
+    const payloadJson = JSON.stringify(action, null, 2)
+    console.log('[actionService] Updating action with payload:', payloadJson)
+
+    try {
+      const { data } = await api.put<any>(API_ENDPOINTS.actions.detail(id), action)
+      return mapBackendActionToFrontend(data)
+    } catch (error: any) {
+      const status = error?.response?.status
+      // Some deployments may still expose PATCH for updates. Only retry when
+      // PUT is explicitly unsupported/not found; do not retry validation or
+      // business-logic failures because that could hide the real backend error.
+      if (status === 404 || status === 405) {
+        const { data } = await api.patch<any>(API_ENDPOINTS.actions.detail(id), action)
+        return mapBackendActionToFrontend(data)
+      }
+
+      console.error('[actionService] Update failed:', {
+        status,
+        errorData: JSON.stringify(error?.response?.data, null, 2),
+        sentPayload: payloadJson,
+      })
+      throw error
+    }
   },
 
   async deleteAction(id: string): Promise<void> {

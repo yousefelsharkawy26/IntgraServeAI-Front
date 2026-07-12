@@ -29,9 +29,12 @@ export function headersToDict(arr: ActionHeaders[] = []): Record<string, string>
   return dict
 }
 
-export function headersFromDict(dict?: Record<string, string>): ActionHeaders[] {
+export function headersFromDict(dict?: Record<string, string> | ActionHeaders[] | null): ActionHeaders[] {
   if (!dict) return []
-  return Object.entries(dict).map(([key, value]) => ({ key, value }))
+  if (Array.isArray(dict)) {
+    return dict.map((header) => ({ key: header.key || '', value: header.value || '' }))
+  }
+  return Object.entries(dict).map(([key, value]) => ({ key, value: String(value ?? '') }))
 }
 
 export function parametersToDict(
@@ -57,13 +60,23 @@ export function parametersToDict(
 }
 
 export function parametersFromDict(
-  dict?: Record<string, ParameterDetail>,
+  dict?: Record<string, ParameterDetail> | ActionParameter[] | null,
 ): ActionParameter[] {
   if (!dict) return []
+  if (Array.isArray(dict)) {
+    return dict.map((parameter) => ({
+      key: parameter.key || '',
+      value: parameter.value ?? '',
+      required: !!parameter.required,
+      paramType: parameter.paramType || 'query',
+      description: parameter.description || '',
+      enumValues: parameter.enumValues || '',
+    }))
+  }
   return Object.entries(dict).map(([key, detail]) => ({
     key,
     value: detail.default ?? '',
-    required: detail.required,
+    required: !!detail.required,
     paramType: detail.param_type || 'query',
     description: detail.description || '',
     enumValues: detail.enum ? detail.enum.join(', ') : '',

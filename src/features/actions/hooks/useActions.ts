@@ -39,11 +39,11 @@ export function useActions(filters?: ActionFilters) {
   })
 }
 
-export function useActionDetail(id: string) {
+export function useActionDetail(id: string, enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.action(id),
     queryFn: () => actionService.getAction(id),
-    enabled: !!id,
+    enabled: enabled && !!id,
   })
 }
 
