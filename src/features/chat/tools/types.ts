@@ -13,6 +13,7 @@ export type ToolStatus =
   | 'running'
   | 'waiting_for_approval'
   | 'waiting_for_user_input'
+  | 'submitting'
   | 'completed'
   | 'failed'
   | 'cancelled'
@@ -20,6 +21,8 @@ export type ToolStatus =
   | 'retrying'
 
 export const TERMINAL_STATUSES: ToolStatus[] = ['completed', 'failed', 'cancelled', 'timeout']
+
+export type ActiveToolSubmissionStatus = 'idle' | 'submitting' | 'failed'
 
 // -------------------------------------------------------
 // Tool Result — What tools send back to backend
@@ -45,6 +48,9 @@ export interface ActiveTool {
   params: Record<string, unknown>
   schema?: ToolSchema // Optional schema from backend
   startedAt: number // Timestamp for timeout tracking
+  submissionStatus?: ActiveToolSubmissionStatus
+  submissionError?: string | null
+  submissionResult?: unknown
 }
 
 // -------------------------------------------------------
@@ -168,6 +174,9 @@ export interface ToolMetadata {
   executionId?: string
   tenantId?: string
   backendContext?: Record<string, unknown>
+  submissionStatus: ActiveToolSubmissionStatus
+  submissionError?: string | null
+  submissionResult?: unknown
 }
 
 // -------------------------------------------------------

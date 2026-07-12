@@ -17,7 +17,7 @@ const schema: ToolSchema = {
     {
       name: 'subject',
       type: 'string',
-      label: 'Subject',
+      label: 'Title',
       required: true,
       min: 3,
       max: 200,
@@ -37,6 +37,14 @@ const schema: ToolSchema = {
       required: true,
       options: ['low', 'medium', 'high', 'urgent'],
       default: 'medium',
+    },
+    {
+      name: 'category',
+      type: 'enum',
+      label: 'Category',
+      required: true,
+      options: ['technical', 'billing', 'account', 'feature_request', 'general'],
+      default: 'technical',
     },
     {
       name: 'customerName',

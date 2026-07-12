@@ -35,6 +35,7 @@ export type ToolStatus =
   | 'waiting_for_approval'
   | 'waiting_for_user_input'
   | 'running'
+  | 'submitting'
   | 'completed'
   | 'failed'
   | 'cancelled'

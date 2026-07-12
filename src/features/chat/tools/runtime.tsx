@@ -69,6 +69,9 @@ export function ToolRenderer({
       executionId,
       tenantId,
       backendContext,
+      submissionStatus: activeTool.submissionStatus || 'idle',
+      submissionError: activeTool.submissionError || null,
+      submissionResult: activeTool.submissionResult,
     }
   }, [activeTool, definition, conversationId, executionId, tenantId, backendContext])
 

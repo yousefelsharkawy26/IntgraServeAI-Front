@@ -328,6 +328,13 @@ const TOOL_STATUS_CONFIG: Record<
     spin: true,
     label: 'Running',
   },
+  submitting: {
+    icon: Loader2,
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-950/20',
+    spin: true,
+    label: 'Submitting',
+  },
   completed: {
     icon: CheckCircle2,
     color: 'text-emerald-500',
@@ -393,7 +400,7 @@ export const ToolExecutionCard = React.memo(function ToolExecutionCard({
             </span>
           </div>
           {toolCall.output && toolCall.status !== 'running' && toolCall.status !== 'pending' && toolCall.status !== 'waiting_for_approval' && (
-            <p className="mt-1 text-[11px] text-muted-foreground truncate">
+            <p className="mt-1 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">
               {toolCall.output}
             </p>
           )}

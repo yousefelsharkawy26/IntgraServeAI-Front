@@ -43,6 +43,9 @@ export interface ToolSDK {
   version: string
   params: Record<string, unknown>
   conversationId: string | null
+  submissionStatus: ToolMetadata['submissionStatus']
+  submissionError?: string | null
+  submissionResult?: unknown
 
   // ---- Metadata ----
   metadata: ToolMetadata
@@ -141,6 +144,12 @@ export function useTool(): ToolSDK {
 
   const { metadata, transport, lifecycleController } = ctx
   const [isBusy, setIsBusy] = useState(false)
+
+  useEffect(() => {
+    if (metadata.submissionStatus === 'failed') {
+      setIsBusy(false)
+    }
+  }, [metadata.submissionStatus])
 
   // AbortController for cancelling long-running requests
   const abortControllerRef = useRef<AbortController>(new AbortController())
@@ -383,6 +392,9 @@ export function useTool(): ToolSDK {
       version: metadata.version,
       params: metadata.params,
       conversationId: metadata.conversationId,
+      submissionStatus: metadata.submissionStatus,
+      submissionError: metadata.submissionError,
+      submissionResult: metadata.submissionResult,
 
       // Metadata
       metadata,

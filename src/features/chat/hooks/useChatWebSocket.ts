@@ -93,6 +93,107 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getEventResult(data: Record<string, unknown>): unknown {
+  return data.result ?? data.output ?? data.data ?? data.message
+}
+
+function isTicketTool(actionName?: string | null): boolean {
+  if (!actionName) return false
+  const normalized = actionName.toLowerCase()
+  return normalized.includes('ticket')
+}
+
+function humanize(value: unknown): string | undefined {
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined
+  return String(value)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function findFirstString(source: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' || typeof value === 'number') return String(value)
+  }
+  return undefined
+}
+
+function unwrapTicketResult(result: unknown): Record<string, unknown> | null {
+  if (!isRecord(result)) return null
+
+  const nestedKeys = ['ticket', 'ticket_data', 'ticketData', 'created_ticket', 'createdTicket', 'data', 'result']
+  for (const key of nestedKeys) {
+    const nested = result[key]
+    if (isRecord(nested)) return { ...result, ...nested }
+  }
+
+  return result
+}
+
+function stringifyResult(result: unknown): string {
+  if (typeof result === 'string') return result
+  if (result === undefined || result === null) return ''
+
+  try {
+    return JSON.stringify(result, null, 2)
+  } catch {
+    return String(result)
+  }
+}
+
+function formatTicketSuccessMessage(result: unknown): string {
+  const ticket = unwrapTicketResult(result)
+  const lines = ['✅ Your support ticket has been created successfully.']
+
+  if (ticket) {
+    const ticketId = findFirstString(ticket, [
+      'ticket_id',
+      'ticketId',
+      'id',
+      'ticket_number',
+      'ticketNumber',
+      'number',
+      'reference_number',
+      'referenceNumber',
+      'reference',
+    ])
+    const status = humanize(findFirstString(ticket, ['status', 'state']))
+    const priority = humanize(findFirstString(ticket, ['priority']))
+    const reference = findFirstString(ticket, ['reference_number', 'referenceNumber', 'reference'])
+
+    if (ticketId) lines.push('', `Ticket ID: **#${ticketId.replace(/^#/, '')}**`)
+    if (status) lines.push(`Status: **${status}**`)
+    if (priority) lines.push(`Priority: **${priority}**`)
+    if (reference && reference !== ticketId) lines.push(`Reference: **${reference}**`)
+
+    const extra = stringifyResult(result)
+    if (!ticketId && extra) lines.push('', 'Backend response:', '```json', extra, '```')
+  } else {
+    const text = stringifyResult(result)
+    if (text) lines.push('', text)
+  }
+
+  return lines.join('\n')
+}
+
+function formatTicketFailureMessage(error: unknown): string {
+  const message = isRecord(error)
+    ? findFirstString(error, ['message', 'error', 'detail', 'reason']) || stringifyResult(error)
+    : stringifyResult(error)
+
+  return `❌ Ticket creation failed.${message ? `\n\nReason: ${message}` : '\n\nPlease review the details and try again.'}`
+}
+
+function formatToolOutput(result: unknown): string {
+  if (typeof result === 'string') return result
+  const text = stringifyResult(result)
+  return text || 'Completed'
+}
+
 function buildWebSocketUrl(path: string, token?: string | null): string {
   const base = typeof window !== 'undefined' ? window.location.href : 'http://localhost'
   const url = new URL(path, base)
@@ -194,7 +295,7 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
   const finalizeRunningTools = useCallback(() => {
     const now = new Date().toISOString()
     const intendedStates = intendedTerminalStatesRef.current
-    const nonTerminal: ToolStatus[] = ['running', 'waiting_for_approval', 'waiting_for_user_input', 'retrying']
+    const nonTerminal: ToolStatus[] = ['running', 'submitting', 'waiting_for_approval', 'waiting_for_user_input', 'retrying']
     
     setToolCalls((prev) => {
       if (!prev.some((t) => nonTerminal.includes(t.status))) return prev
@@ -202,18 +303,30 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
       return prev.map((t) => {
         if (!nonTerminal.includes(t.status)) return t
         
-        // Use intended state if this is the tool we're tracking
+        // Never assume a submitted tool succeeded if the backend ended the
+        // turn without sending a terminal tool_end event.
         const intendedStatus = intendedStates.get(t.id)
+        if (intendedStatus === 'completed' || t.status === 'submitting') {
+          intendedStates.delete(t.id)
+          return {
+            ...t,
+            status: 'failed' as const,
+            output: 'The backend did not confirm completion. Please retry.',
+            endTime: now,
+          }
+        }
         if (intendedStatus) {
-          const outputText = intendedStatus === 'completed' ? 'Completed' :
-                           intendedStatus === 'cancelled' ? 'Cancelled by user' :
-                           intendedStatus === 'failed' ? 'Failed' : 'Completed'
+          const outputText = intendedStatus === 'cancelled' ? 'Cancelled by user' : 'Failed'
           intendedStates.delete(t.id)
           return { ...t, status: intendedStatus, output: outputText, endTime: now }
         }
         
-        // Default to completed for other tools
-        return { ...t, status: 'completed' as const, output: 'Completed', endTime: now }
+        return {
+          ...t,
+          status: 'failed' as const,
+          output: 'Tool execution ended before completion was confirmed.',
+          endTime: now,
+        }
       })
     })
     
@@ -222,12 +335,23 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
         const tool = m.toolCalls?.[0]
         if (!tool || !nonTerminal.includes(tool.status)) return m
         
-        // Use intended state if this is the tool we're tracking
+        // Never assume a submitted tool succeeded if the backend did not
+        // return tool_end.
         const intendedStatus = intendedStates.get(m.id)
+        if (intendedStatus === 'completed' || tool.status === 'submitting') {
+          return {
+            ...m,
+            content: `${tool.name} failed`,
+            toolCalls: [{
+              ...tool,
+              status: 'failed' as const,
+              output: 'The backend did not confirm completion. Please retry.',
+              endTime: now,
+            }],
+          }
+        }
         if (intendedStatus) {
-          const outputText = intendedStatus === 'completed' ? 'Completed' :
-                           intendedStatus === 'cancelled' ? 'Cancelled by user' :
-                           intendedStatus === 'failed' ? 'Failed' : 'Completed'
+          const outputText = intendedStatus === 'cancelled' ? 'Cancelled by user' : 'Failed'
           return {
             ...m,
             content: `${tool.name} ${intendedStatus}`,
@@ -237,16 +361,31 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
         
         return {
           ...m,
-          content: `${tool.name} completed`,
-          toolCalls: [{ ...tool, status: 'completed' as const, output: 'Completed', endTime: now }],
+          content: `${tool.name} failed`,
+          toolCalls: [{
+            ...tool,
+            status: 'failed' as const,
+            output: 'Tool execution ended before completion was confirmed.',
+            endTime: now,
+          }],
         }
       })
     )
     
-    // Clear the refs
+    setActiveTool((tool) =>
+      tool?.submissionStatus === 'submitting'
+        ? {
+            ...tool,
+            submissionStatus: 'failed',
+            submissionError: 'The backend did not confirm ticket creation. Please retry.',
+          }
+        : tool
+    )
+    resultSentRef.current = false
+
+    // Clear the refs only when no retryable tool UI remains open.
     intendedStates.clear()
-    currentToolCallRef.current = null
-    activeToolCallIdRef.current = null
+    if (!activeToolCallIdRef.current) currentToolCallRef.current = null
   }, [])
 
   // -------------------------------------------------------
@@ -255,17 +394,28 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
   const updateToolStatus = useCallback(
     (localId: string, status: ToolStatus, output?: string) => {
       const now = new Date().toISOString()
+      const isTerminal = ['completed', 'failed', 'cancelled', 'timeout'].includes(status)
       setToolCalls((prev) => {
         const target = prev.find((t) => t.id === localId)
         if (!target) return prev
-        const updated: ToolCallInfo = { ...target, status, output: output ?? target.output, endTime: now }
+        const updated: ToolCallInfo = {
+          ...target,
+          status,
+          output: output ?? target.output,
+          endTime: isTerminal ? now : target.endTime,
+        }
         return prev.map((t) => (t.id === localId ? updated : t))
       })
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== localId || !m.toolCalls?.length) return m
           const tool = m.toolCalls[0]
-          const updated: ToolCallInfo = { ...tool, status, output: output ?? tool.output, endTime: now }
+          const updated: ToolCallInfo = {
+            ...tool,
+            status,
+            output: output ?? tool.output,
+            endTime: isTerminal ? now : tool.endTime,
+          }
           return { ...m, content: `${tool.name} ${status}`, toolCalls: [updated] }
         })
       )
@@ -366,9 +516,10 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
           const localId = `tool-${generateId()}`
           const toolCall: ToolCallInfo = {
             id: localId,
+            serverToolCallId: data.tool_call_id,
             name: data.name || 'Tool',
             status: 'running',
-            input: data.args || {},
+            input: data.args || data.input || {},
             startTime: new Date().toISOString(),
           }
 
@@ -390,31 +541,46 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
         // a tool reaches a terminal state.
         // =====================================================
         case 'tool_end': {
+          const rawResult = getEventResult(data)
+          const actionName = data.name || currentToolCallRef.current?.name || 'Tool'
+
           diagnostics.info('lifecycle', 'Tool ended (backend)', {
-            actionName: data.name,
-            result: data.result,
+            actionName,
+            result: rawResult,
           })
 
           const completedTool = currentToolCallRef.current
           if (completedTool) {
-            // Check if we have an intended status for this tool
             const intendedStatus = intendedTerminalStatesRef.current.get(completedTool.id)
-            const outputText = data.result || 'Completed'
-            
-            if (intendedStatus) {
-              // Use the intended status (e.g., cancelled, failed)
-              const finalOutput = intendedStatus === 'completed' ? outputText : 
-                                intendedStatus === 'cancelled' ? 'Cancelled by user' : 
-                                intendedStatus === 'failed' ? 'Failed' : outputText
-              updateToolStatus(completedTool.id, intendedStatus, finalOutput)
-              intendedTerminalStatesRef.current.delete(completedTool.id)
-            } else {
-              // No intended status, use backend's completed status
-              updateToolStatus(completedTool.id, 'completed', outputText)
+            const isCancellation = intendedStatus === 'cancelled'
+            const outputText = isCancellation
+              ? 'Cancelled by user'
+              : isTicketTool(actionName)
+                ? formatTicketSuccessMessage(rawResult)
+                : formatToolOutput(rawResult) || 'Completed'
+
+            updateToolStatus(completedTool.id, isCancellation ? 'cancelled' : 'completed', outputText)
+            intendedTerminalStatesRef.current.delete(completedTool.id)
+
+            if (!isCancellation && isTicketTool(actionName)) {
+              setMessages((prev) => [...prev, {
+                id: `ticket-success-${generateId()}`,
+                content: outputText,
+                sender: 'ai',
+                timestamp: new Date().toISOString(),
+              } as ChatMessage])
             }
-            
+
             currentToolCallRef.current = null
           }
+
+          setActiveTool((tool) => {
+            if (!tool) return tool
+            const terminalToolCallId = data.tool_call_id || activeToolCallIdRef.current
+            return !terminalToolCallId || tool.toolCallId === terminalToolCallId ? null : tool
+          })
+          activeToolCallIdRef.current = null
+          resultSentRef.current = false
           
           // If we were stopping, clear the flag
           if (stoppingRef.current) {
@@ -427,27 +593,57 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
         // { type: "tool_error", name, error }
         // =====================================================
         case 'tool_error': {
+          const actionName = data.name || currentToolCallRef.current?.name || 'Tool'
+          const errorPayload = data.error || data.message || data.detail || 'Tool execution failed'
+          const friendlyError = isTicketTool(actionName)
+            ? formatTicketFailureMessage(errorPayload)
+            : stringifyResult(errorPayload) || 'Tool execution failed'
+
           diagnostics.error('lifecycle', 'Tool error (backend)', {
-            actionName: data.name,
-            error: data.error,
+            actionName,
+            error: errorPayload,
           })
 
           const errorTool = currentToolCallRef.current
           if (errorTool) {
-            // Check if we have an intended status for this tool
             const intendedStatus = intendedTerminalStatesRef.current.get(errorTool.id)
-            
-            if (intendedStatus && intendedStatus !== 'failed') {
-              // Use the intended status if it's not already failed
-              const finalOutput = intendedStatus === 'cancelled' ? 'Cancelled by user' : data.error || 'Tool execution failed'
-              updateToolStatus(errorTool.id, intendedStatus, finalOutput)
-              intendedTerminalStatesRef.current.delete(errorTool.id)
+            const finalStatus: ToolStatus = intendedStatus === 'cancelled' ? 'cancelled' : 'failed'
+            const finalOutput = finalStatus === 'cancelled' ? 'Cancelled by user' : friendlyError
+
+            updateToolStatus(errorTool.id, finalStatus, finalOutput)
+            intendedTerminalStatesRef.current.delete(errorTool.id)
+
+            if (finalStatus === 'cancelled') {
+              currentToolCallRef.current = null
+              setActiveTool(null)
+              activeToolCallIdRef.current = null
             } else {
-              // Use failed status from backend
-              updateToolStatus(errorTool.id, 'failed', data.error || 'Tool execution failed')
+              // Keep the active tool open in a retryable failed state. This is
+              // critical for ticket creation: a backend failure must not close
+              // the modal or imply that the ticket was created.
+              setActiveTool((tool) => {
+                if (!tool) return tool
+                const failedToolCallId = data.tool_call_id || activeToolCallIdRef.current
+                return !failedToolCallId || tool.toolCallId === failedToolCallId
+                  ? {
+                      ...tool,
+                      submissionStatus: 'failed',
+                      submissionError: stringifyResult(errorPayload) || 'Tool execution failed',
+                    }
+                  : tool
+              })
+              resultSentRef.current = false
             }
-            
-            currentToolCallRef.current = null
+          }
+
+          if (isTicketTool(actionName)) {
+            setMessages((prev) => [...prev, {
+              id: `ticket-failure-${generateId()}`,
+              content: friendlyError,
+              sender: 'ai',
+              timestamp: new Date().toISOString(),
+              isError: true,
+            } as ChatMessage])
           }
           
           // If we were stopping, clear the flag
@@ -528,12 +724,16 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
             updateToolStatus(currentToolCallRef.current.id, 'waiting_for_user_input')
           }
 
+          const inputActionName = data.action_name || currentToolCallRef.current?.name || 'unknown'
+
           // Set the active tool — ToolRenderer will look up the component
           setActiveTool({
             toolCallId: inputToolCallId,
-            actionName: data.action_name || 'unknown',
+            actionName: inputActionName,
             params: data.params || {},
             startedAt: Date.now(),
+            submissionStatus: 'idle',
+            submissionError: null,
           })
           break
         }
@@ -678,9 +878,11 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
 
           setActiveTool({
             toolCallId: restoreToolCallId,
-            actionName: data.action_name || 'unknown',
+            actionName: data.action_name || currentToolCallRef.current?.name || 'unknown',
             params: data.params || {},
             startedAt: Date.now(),
+            submissionStatus: 'idle',
+            submissionError: null,
           })
           setIsTyping(false)
           break
@@ -905,10 +1107,11 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
       resultPayload = { error: (payload as any)?.error || 'Tool failed' }
     }
 
-    // Track the intended terminal state so finalizeRunningTools can preserve it
-    if (currentToolCallRef.current) {
-      const toolStatus: ToolStatus = status === 'success' ? 'completed' : 
-                                     status === 'cancelled' ? 'cancelled' : 'failed'
+    // Only cancelled/failed are terminal from the user's perspective. A
+    // successful form submission is not a completed tool yet; the backend must
+    // confirm actual success with tool_end.
+    if (currentToolCallRef.current && status !== 'success') {
+      const toolStatus: ToolStatus = status === 'cancelled' ? 'cancelled' : 'failed'
       intendedTerminalStatesRef.current.set(currentToolCallRef.current.id, toolStatus)
     }
 
@@ -925,13 +1128,32 @@ export function useChatWebSocket({ customerEmail, customerName, token, sessionId
       payload: resultPayload,
     })
 
-    // Close the tool UI immediately
-    setActiveTool(null)
+    if (status === 'success') {
+      setActiveTool((tool) =>
+        tool && tool.toolCallId === toolCallId
+          ? {
+              ...tool,
+              submissionStatus: 'submitting',
+              submissionError: null,
+            }
+          : tool
+      )
 
-    // Transition tool to 'running' — the backend is now processing the result
-    // and will emit tool_end when done. The frontend does NOT mark it completed.
-    if (currentToolCallRef.current) {
-      updateToolStatus(currentToolCallRef.current.id, 'running', 'Processing result...')
+      // The backend is now processing the submitted form. Keep the modal open
+      // and do not mark the tool completed until a backend terminal event is
+      // received.
+      if (currentToolCallRef.current) {
+        updateToolStatus(currentToolCallRef.current.id, 'submitting', 'Submitting to backend...')
+      }
+    } else {
+      setActiveTool(null)
+      if (currentToolCallRef.current) {
+        updateToolStatus(
+          currentToolCallRef.current.id,
+          status === 'cancelled' ? 'cancelled' : 'failed',
+          status === 'cancelled' ? 'Cancelled by user' : 'Tool failed'
+        )
+      }
     }
 
     setIsTyping(true)

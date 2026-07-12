@@ -16,13 +16,15 @@ export const VALID_TRANSITIONS: Record<ToolStatus, ToolStatus[]> = {
   running: [
     'waiting_for_approval',
     'waiting_for_user_input',
+    'submitting',
     'completed',
     'failed',
     'cancelled',
     'timeout',
   ],
   waiting_for_approval: ['running', 'cancelled', 'timeout'],
-  waiting_for_user_input: ['running', 'cancelled', 'timeout'],
+  waiting_for_user_input: ['submitting', 'running', 'cancelled', 'timeout'],
+  submitting: ['completed', 'failed', 'cancelled', 'timeout'],
   completed: [], // Terminal state
   failed: ['retrying'],
   cancelled: [], // Terminal state
@@ -90,15 +92,15 @@ export const EVENT_TO_TRANSITION: Record<LifecycleEvent, { from: ToolStatus[]; t
   approved: { from: ['waiting_for_approval'], to: 'running' },
   rejected: { from: ['waiting_for_approval'], to: 'cancelled' },
   user_input_requested: { from: ['running'], to: 'waiting_for_user_input' },
-  user_input_received: { from: ['waiting_for_user_input'], to: 'running' },
-  completed: { from: ['running', 'waiting_for_user_input'], to: 'completed' },
-  failed: { from: ['running', 'waiting_for_user_input'], to: 'failed' },
+  user_input_received: { from: ['waiting_for_user_input'], to: 'submitting' },
+  completed: { from: ['running', 'submitting', 'waiting_for_user_input'], to: 'completed' },
+  failed: { from: ['running', 'submitting', 'waiting_for_user_input'], to: 'failed' },
   cancelled: {
-    from: ['pending', 'running', 'waiting_for_approval', 'waiting_for_user_input'],
+    from: ['pending', 'running', 'submitting', 'waiting_for_approval', 'waiting_for_user_input'],
     to: 'cancelled',
   },
   timeout: {
-    from: ['running', 'waiting_for_approval', 'waiting_for_user_input'],
+    from: ['running', 'submitting', 'waiting_for_approval', 'waiting_for_user_input'],
     to: 'timeout',
   },
   retrying: { from: ['failed', 'timeout'], to: 'retrying' },
