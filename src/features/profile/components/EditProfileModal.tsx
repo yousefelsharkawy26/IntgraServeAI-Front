@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { User } from '@/types'
 import { useEscapeClose } from '../hooks/useEscapeClose'
-import { preventBodyScroll } from '../hooks/preventBodyScroll'
+import { usePreventBodyScroll } from '../hooks/preventBodyScroll'
 
 const profileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -40,7 +40,7 @@ export function EditProfileModal({ open, onClose, user }: EditProfileModalProps)
   }, [open, user, reset])
 
   useEscapeClose(open, onClose)
-  preventBodyScroll(open)
+  usePreventBodyScroll(open)
 
   const onSubmit = (data: ProfileFormData) => {
     updateProfile.mutate(data, { onSuccess: onClose })

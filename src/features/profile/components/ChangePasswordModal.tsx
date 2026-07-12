@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useEscapeClose } from '../hooks/useEscapeClose'
-import { preventBodyScroll } from '../hooks/preventBodyScroll'
+import { usePreventBodyScroll } from '../hooks/preventBodyScroll'
 
 const passwordSchema = z
   .object({
@@ -76,7 +76,7 @@ export function ChangePasswordModal({ open, onClose }: ChangePasswordModalProps)
   }, [watch])
 
   useEscapeClose(open, onClose)
-  preventBodyScroll(open)
+  usePreventBodyScroll(open)
 
   const onSubmit = (data: PasswordFormData) => {
     changePassword.mutate(

@@ -5,8 +5,6 @@
 // Components
 export { default as ChatPage } from './components/ChatPage'
 export { ChatWidget } from './components/ChatWidget'
-export { ChatLayout } from './components/ChatLayout'
-export { ChatSidebar } from './components/ChatSidebar'
 export { ChatEmptyState } from './components/ChatEmptyState'
 export { ChatComposer } from './components/ChatComposer'
 export { ChatMarkdown } from './components/ChatMarkdown'
@@ -54,7 +52,6 @@ export type {
 export {
   DEFAULT_CHAT_CONFIG,
   SUGGESTED_PROMPTS,
-  QUICK_ACTIONS,
   MODEL_OPTIONS,
   FOLDER_COLORS,
   FILE_TYPE_CONFIG,

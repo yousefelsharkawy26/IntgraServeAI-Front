@@ -53,7 +53,6 @@ export interface ToolCallInfo {
   endTime?: string
 }
 
-export type ConversationFilter = 'all' | 'pinned' | 'favorites' | 'archived'
 
 export interface Conversation {
   id: string
@@ -85,23 +84,14 @@ export interface ChatConfig {
 
 export interface ChatState {
   isOpen: boolean
-  isExpanded: boolean
-  sidebarOpen: boolean
+  isMaximized: boolean
   activeConversationId: string | null
-  conversations: Conversation[]
   messages: ChatMessage[]
   isTyping: boolean
   inputValue: string
   pendingFiles: PendingFile[]
-  isDragging: boolean
-  editingMessageId: string | null
-  editValue: string
   previewImage: string | null
-  uploadingFiles: boolean
-  searchQuery: string
-  searchOpen: boolean
-  activeFolder: string | null
-  showArchived: boolean
+  connectionStatus: 'disconnected' | 'connecting' | 'connected'
 }
 
 export interface PendingFile {
@@ -164,12 +154,6 @@ export const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   { id: '6', label: 'Help me troubleshoot an error', icon: 'Wrench', category: 'Technical' },
 ]
 
-export const QUICK_ACTIONS = [
-  { id: 'new-chat', label: 'New Chat', icon: 'Plus', shortcut: 'Ctrl+N' },
-  { id: 'search', label: 'Search', icon: 'Search', shortcut: 'Ctrl+K' },
-  { id: 'settings', label: 'Settings', icon: 'Settings', shortcut: 'Ctrl+,' },
-]
-
 export const MODEL_OPTIONS: ModelOption[] = [
   { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable model', provider: 'OpenAI', maxTokens: 128000 },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and efficient', provider: 'OpenAI', maxTokens: 128000 },
@@ -199,15 +183,3 @@ export const FILE_TYPE_CONFIG: Record<string, { icon: string; color: string; lab
   'application/zip': { icon: 'Archive', color: '#6b7280', label: 'Archive' },
 }
 
-export const WIDGET_SIZE = {
-  width: 420,
-  height: 640,
-  expandedPadding: 16,
-}
-
-export const CHAT_LAYOUT = {
-  sidebarWidth: 280,
-  sidebarWidthCollapsed: 0,
-  maxContentWidth: 768,
-  composerMaxWidth: 768,
-}

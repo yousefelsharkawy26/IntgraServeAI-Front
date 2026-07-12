@@ -5,7 +5,7 @@ import { useEffect } from 'react'
  * Handles SSR safely and supports iOS-style scroll preservation with
  * a fixed body height to avoid rubber-band scrolling on mobile.
  */
-export function preventBodyScroll(locked: boolean) {
+export function usePreventBodyScroll(locked: boolean) {
   useEffect(() => {
     if (!locked) return
 
