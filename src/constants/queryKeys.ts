@@ -14,4 +14,9 @@ export const QUERY_KEYS = {
   roles: ['roles'],
   myRoles: ['roles', 'me'],
   dashboard: ['dashboard'],
+  agentConfig: ['agent-config'],
+  llmConfigs: ['llm-configs'],
+  llmConfigProviders: ['llm-configs', 'providers'],
+  agentConfigBackups: ['agent-config', 'backups'],
+  agentConfigBackup: (id: string) => ['agent-config', 'backups', id],
 } as const

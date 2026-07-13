@@ -59,6 +59,19 @@ export const API_ENDPOINTS = {
   dashboard: {
     overview: '/dashboard/overview',
   },
+  agentConfig: {
+    root: '/agent-config',
+    backups: {
+      list: '/agent-config/backups',
+      detail: (id: string) => `/agent-config/backups/${id}`,
+      restore: (id: string) => `/agent-config/backups/${id}/restore`,
+    },
+  },
+  llmConfigs: {
+    list: '/llm-configs',
+    detail: (id: string) => `/llm-configs/${id}`,
+    providers: '/llm-configs/providers',
+  },
   chat: {
     ws: '/chat/ws',
     messages: '/chat/messages',
